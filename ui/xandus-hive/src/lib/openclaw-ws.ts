@@ -83,7 +83,7 @@ let lastSeq: number | null = null;
 const pending = new Map<string, Pending>();
 const eventHandlers: EventHandler[] = [];
 
-let connectNonce: string | null = null;
+let __wsConnectNonce: string | null = null;
 let connectSent = false;
 let connectTimer: ReturnType<typeof setTimeout> | null = null;
 let backoffMs = 800;
@@ -93,6 +93,14 @@ function setState(next: ConnectionState) {
   if (state !== next) {
     state = next;
     config.onStateChange?.(next);
+    const connected = next === "connected";
+    for (const handler of statusChangeHandlers) {
+      try {
+        handler(connected);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 
@@ -108,14 +116,18 @@ function flushPending(err: Error) {
 }
 
 function scheduleReconnect() {
-  if (stopped) {return;}
+  if (stopped) {
+    return;
+  }
   const delay = backoffMs;
   backoffMs = Math.min(backoffMs * 1.7, 15_000);
   setTimeout(() => doConnect(), delay);
 }
 
 function sendConnectFrame() {
-  if (connectSent || !ws || ws.readyState !== WebSocket.OPEN) {return;}
+  if (connectSent || !ws || ws.readyState !== WebSocket.OPEN) {
+    return;
+  }
   connectSent = true;
   if (connectTimer !== null) {
     clearTimeout(connectTimer);
@@ -174,7 +186,7 @@ function handleMessage(raw: string) {
     if (evt.event === "connect.challenge") {
       const payload = evt.payload as { nonce?: string } | undefined;
       if (payload?.nonce) {
-        connectNonce = payload.nonce;
+        _wsConnectNonce = payload.nonce;
         sendConnectFrame();
       }
       return;
@@ -185,7 +197,9 @@ function handleMessage(raw: string) {
     if (seq !== null && lastSeq !== null && seq > lastSeq + 1) {
       config.onError?.(`event gap: expected seq ${String(lastSeq + 1)}, got ${String(seq)}`);
     }
-    if (seq !== null) {lastSeq = seq;}
+    if (seq !== null) {
+      lastSeq = seq;
+    }
 
     // Dispatch to handlers
     config.onEvent?.(evt.event, evt.payload);
@@ -203,7 +217,9 @@ function handleMessage(raw: string) {
   if (frame.type === "res") {
     const res = parsed as ResponseFrame;
     const p = pending.get(res.id);
-    if (!p) {return;}
+    if (!p) {
+      return;
+    }
     pending.delete(res.id);
     if (res.ok) {
       p.resolve(res.payload);
@@ -216,17 +232,21 @@ function handleMessage(raw: string) {
 }
 
 function doConnect() {
-  if (stopped) {return;}
+  if (stopped) {
+    return;
+  }
   setState("connecting");
 
   const url = config.url || `ws://${window.location.host}`;
   ws = new WebSocket(url);
-  connectNonce = null;
+  _wsConnectNonce = null;
   connectSent = false;
 
   ws.addEventListener("open", () => {
     // Wait for connect.challenge event; queue timeout fallback
-    if (connectTimer !== null) {clearTimeout(connectTimer);}
+    if (connectTimer !== null) {
+      clearTimeout(connectTimer);
+    }
     connectTimer = setTimeout(() => sendConnectFrame(), 750);
   });
 
@@ -235,7 +255,7 @@ function doConnect() {
   ws.addEventListener("close", () => {
     ws = null;
     hello = null;
-    connectNonce = null;
+    _wsConnectNonce = null;
     connectSent = false;
     flushPending(new Error("gateway disconnected"));
     setState("disconnected");
@@ -249,8 +269,12 @@ function doConnect() {
 
 // --- Public API ---
 
-export function connect(cfg: OpenClawClientConfig = {}): void {
-  config = cfg;
+export function connect(cfgOrToken?: OpenClawClientConfig | string): void {
+  if (typeof cfgOrToken === "string") {
+    config = { token: cfgOrToken };
+  } else {
+    config = cfgOrToken ?? {};
+  }
   stopped = false;
   backoffMs = 800;
   lastSeq = null;
@@ -259,7 +283,9 @@ export function connect(cfg: OpenClawClientConfig = {}): void {
 
 export function disconnect(): void {
   stopped = true;
-  if (connectTimer !== null) {clearTimeout(connectTimer);}
+  if (connectTimer !== null) {
+    clearTimeout(connectTimer);
+  }
   ws?.close();
   ws = null;
   hello = null;
@@ -292,11 +318,47 @@ export function request<T = unknown>(method: string, params?: unknown): Promise<
   return p;
 }
 
-export function onEvent(handler: EventHandler): () => void {
+export function onEvent(
+  handlerOrEvent: EventHandler | string,
+  cb?: (payload: Record<string, unknown>) => void,
+): () => void {
+  if (typeof handlerOrEvent === "string" && cb) {
+    // Overload: onEvent("event.name", (payload) => { ... })
+    const eventName = handlerOrEvent;
+    const handler: EventHandler = (event, payload) => {
+      if (event === eventName) {
+        cb((payload ?? {}) as Record<string, unknown>);
+      }
+    };
+    eventHandlers.push(handler);
+    return () => {
+      const idx = eventHandlers.indexOf(handler);
+      if (idx >= 0) {
+        eventHandlers.splice(idx, 1);
+      }
+    };
+  }
+  // Original: onEvent((event, payload) => { ... })
+  const handler = handlerOrEvent as EventHandler;
   eventHandlers.push(handler);
   return () => {
     const idx = eventHandlers.indexOf(handler);
-    if (idx >= 0) {eventHandlers.splice(idx, 1);}
+    if (idx >= 0) {
+      eventHandlers.splice(idx, 1);
+    }
+  };
+}
+
+// Connection status change handler
+const statusChangeHandlers: ((connected: boolean) => void)[] = [];
+
+export function onStatusChange(handler: (connected: boolean) => void): () => void {
+  statusChangeHandlers.push(handler);
+  return () => {
+    const idx = statusChangeHandlers.indexOf(handler);
+    if (idx >= 0) {
+      statusChangeHandlers.splice(idx, 1);
+    }
   };
 }
 
@@ -305,14 +367,10 @@ export function onEvent(handler: EventHandler): () => void {
 // Sessions
 export const sessions = {
   list: () => request<{ sessions: unknown[] }>("sessions.list"),
-  preview: (sessionKey: string) =>
-    request("sessions.preview", { sessionKey }),
-  resolve: (sessionKey: string) =>
-    request("sessions.resolve", { sessionKey }),
-  reset: (sessionKey: string) =>
-    request("sessions.reset", { sessionKey }),
-  delete: (sessionKey: string) =>
-    request("sessions.delete", { sessionKey }),
+  preview: (sessionKey: string) => request("sessions.preview", { sessionKey }),
+  resolve: (sessionKey: string) => request("sessions.resolve", { sessionKey }),
+  reset: (sessionKey: string) => request("sessions.reset", { sessionKey }),
+  delete: (sessionKey: string) => request("sessions.delete", { sessionKey }),
   usage: () => request("sessions.usage"),
 };
 
@@ -321,34 +379,26 @@ export const agent = {
   send: (message: string, sessionKey?: string, agentId?: string) =>
     request("agent", { message, sessionKey, agentId }),
   identity: () => request("agent.identity.get"),
-  wait: (sessionKey: string) =>
-    request("agent.wait", { sessionKey }),
+  wait: (sessionKey: string) => request("agent.wait", { sessionKey }),
 };
 
 // Chat (WebSocket-native chat)
 export const chat = {
-  history: (sessionKey?: string) =>
-    request("chat.history", { sessionKey }),
-  send: (message: string, sessionKey?: string) =>
-    request("chat.send", { message, sessionKey }),
-  abort: (runId?: string) =>
-    request("chat.abort", { runId }),
+  history: (sessionKey?: string) => request("chat.history", { sessionKey }),
+  send: (message: string, sessionKey?: string) => request("chat.send", { message, sessionKey }),
+  abort: (runId?: string) => request("chat.abort", { runId }),
 };
 
 // Agents (Multi-Agent management)
 export const agents = {
   list: () => request("agents.list"),
-  create: (params: Record<string, unknown>) =>
-    request("agents.create", params),
+  create: (params: Record<string, unknown>) => request("agents.create", params),
   update: (agentId: string, params: Record<string, unknown>) =>
     request("agents.update", { agentId, ...params }),
-  delete: (agentId: string) =>
-    request("agents.delete", { agentId }),
+  delete: (agentId: string) => request("agents.delete", { agentId }),
   files: {
-    list: (agentId: string) =>
-      request("agents.files.list", { agentId }),
-    get: (agentId: string, path: string) =>
-      request("agents.files.get", { agentId, path }),
+    list: (agentId: string) => request("agents.files.list", { agentId }),
+    get: (agentId: string, path: string) => request("agents.files.get", { agentId, path }),
     set: (agentId: string, path: string, content: string) =>
       request("agents.files.set", { agentId, path, content }),
   },
@@ -357,10 +407,8 @@ export const agents = {
 // Config
 export const gatewayConfig = {
   get: () => request("config.get"),
-  set: (key: string, value: unknown) =>
-    request("config.set", { key, value }),
-  patch: (delta: Record<string, unknown>) =>
-    request("config.patch", { delta }),
+  set: (key: string, value: unknown) => request("config.set", { key, value }),
+  patch: (delta: Record<string, unknown>) => request("config.patch", { delta }),
   schema: () => request("config.schema"),
 };
 
@@ -368,16 +416,13 @@ export const gatewayConfig = {
 export const cron = {
   list: () => request("cron.list"),
   status: () => request("cron.status"),
-  add: (job: Record<string, unknown>) =>
-    request("cron.add", job),
+  add: (job: Record<string, unknown>) => request("cron.add", job),
   update: (jobId: string, job: Record<string, unknown>) =>
     request("cron.update", { id: jobId, ...job }),
-  remove: (jobId: string) =>
-    request("cron.remove", { id: jobId }),
-  run: (jobId: string) =>
-    request("cron.run", { id: jobId }),
-  runs: (jobId: string) =>
-    request("cron.runs", { id: jobId }),
+  remove: (jobId: string) => request("cron.remove", { id: jobId }),
+  run: (jobId: string) => request("cron.run", { id: jobId }),
+  runs: (jobId: string) => request("cron.runs", { id: jobId }),
+  toggle: (jobId: string, enabled: boolean) => request("cron.update", { id: jobId, enabled }),
 };
 
 // Models
@@ -388,8 +433,7 @@ export const models = {
 // Exec Approvals
 export const execApprovals = {
   get: () => request("exec.approvals.get"),
-  set: (policies: unknown) =>
-    request("exec.approvals.set", { policies }),
+  set: (policies: unknown) => request("exec.approvals.set", { policies }),
   resolve: (id: string, decision: "approve" | "deny") =>
     request("exec.approval.resolve", { id, decision }),
 };
@@ -397,9 +441,15 @@ export const execApprovals = {
 // Skills
 export const skills = {
   status: () => request("skills.status"),
+  list: () => request("skills.list"),
   bins: () => request("skills.bins"),
-  install: (name: string) =>
-    request("skills.install", { name }),
+  get: (name: string, scope?: string) => request("skills.get", { name, scope }),
+  install: (name: string) => request("skills.install", { name }),
+  save: (name: string, scope: string, content: string) =>
+    request("skills.save", { name, scope, content }),
+  delete: (name: string, scope?: string) => request("skills.delete", { name, scope }),
+  assign: (agentId: string, skillNames: string[]) =>
+    request("skills.assign", { agentId, skills: skillNames }),
 };
 
 // Usage & Cost
@@ -407,8 +457,7 @@ export const usage = {
   status: () => request("usage.status"),
   cost: () => request("usage.cost"),
   logs: () => request("sessions.usage.logs"),
-  timeseries: (params?: Record<string, unknown>) =>
-    request("sessions.usage.timeseries", params),
+  timeseries: (params?: Record<string, unknown>) => request("sessions.usage.timeseries", params),
 };
 
 // Logs
@@ -422,30 +471,27 @@ export const health = () => request("health");
 // --- Custom Xandus Extensions ---
 
 export const xandus = {
+  console: {
+    attach: (groupFolder: string) => request("xandus.console.attach", { groupFolder }),
+    detach: (groupFolder: string) => request("xandus.console.detach", { groupFolder }),
+  },
   supabase: {
     query: (table: string, filters?: Record<string, unknown>) =>
       request("xandus.supabase.query", { table, ...filters }),
-    upsert: (table: string, data: unknown) =>
-      request("xandus.supabase.upsert", { table, data }),
-    delete: (table: string, id: string) =>
-      request("xandus.supabase.delete", { table, id }),
+    upsert: (table: string, data: unknown) => request("xandus.supabase.upsert", { table, data }),
+    delete: (table: string, id: string) => request("xandus.supabase.delete", { table, id }),
   },
   agent: {
-    listAgents: () =>
-      request("xandus.agent.listAgents"),
+    listAgents: () => request("xandus.agent.listAgents"),
     readFile: (agentId: string, path: string) =>
       request<{ path: string; content: string }>("xandus.agent.readFile", { agentId, path }),
     writeFile: (agentId: string, path: string, content: string) =>
       request("xandus.agent.writeFile", { agentId, path, content }),
-    listSkills: (agentId: string) =>
-      request("xandus.agent.listSkills", { agentId }),
+    listSkills: (agentId: string) => request("xandus.agent.listSkills", { agentId }),
   },
   cost: {
-    summary: (agentId?: string, days?: number) =>
-      request("xandus.cost.summary", { agentId, days }),
-    daily: (agentId?: string, days?: number) =>
-      request("xandus.cost.daily", { agentId, days }),
-    models: (agentId?: string, days?: number) =>
-      request("xandus.cost.models", { agentId, days }),
+    summary: (agentId?: string, days?: number) => request("xandus.cost.summary", { agentId, days }),
+    daily: (agentId?: string, days?: number) => request("xandus.cost.daily", { agentId, days }),
+    models: (agentId?: string, days?: number) => request("xandus.cost.models", { agentId, days }),
   },
 };

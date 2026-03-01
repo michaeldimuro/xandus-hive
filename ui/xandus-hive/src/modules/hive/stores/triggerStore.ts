@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import type { Trigger } from '@xandus/shared';
-import * as ws from '@/lib/websocket';
+import type { Trigger } from "@xandus/shared";
+import { create } from "zustand";
+import { cron } from "@/lib/openclaw-ws";
 
 interface TriggerStoreState {
   triggers: Trigger[];
@@ -22,12 +22,81 @@ export const useTriggerStore = create<TriggerStoreState>((set) => ({
   loading: true,
   setTriggers: (triggers) => set({ triggers, loading: false }),
   addTrigger: (trigger) => set((s) => ({ triggers: [...s.triggers, trigger] })),
-  updateTrigger: (trigger) => set((s) => ({ triggers: s.triggers.map((t) => t.id === trigger.id ? trigger : t) })),
+  updateTrigger: (trigger) =>
+    set((s) => ({ triggers: s.triggers.map((t) => (t.id === trigger.id ? trigger : t)) })),
   removeTrigger: (id) => set((s) => ({ triggers: s.triggers.filter((t) => t.id !== id) })),
-  fetchTriggers: () => ws.send({ type: 'trigger.list' }),
-  createTrigger: (payload) => ws.send({ type: 'trigger.create', payload }),
-  updateTriggerData: (id, payload) => ws.send({ type: 'trigger.update', id, payload }),
-  deleteTrigger: (id) => ws.send({ type: 'trigger.delete', id }),
-  toggleTrigger: (id, enabled) => ws.send({ type: 'trigger.toggle', id, enabled }),
-  fireTrigger: (id) => ws.send({ type: 'trigger.fire', id }),
+
+  fetchTriggers: () => {
+    cron
+      .list()
+      .then((res) => {
+        const list = (res as { jobs: Trigger[] }).jobs;
+        if (Array.isArray(list)) {
+          useTriggerStore.getState().setTriggers(list);
+        }
+      })
+      .catch(() => {
+        /* handled by caller */
+      });
+  },
+
+  createTrigger: (payload) => {
+    cron
+      .add(payload)
+      .then((res) => {
+        const trigger = (res as { trigger: Trigger }).trigger;
+        if (trigger) {
+          useTriggerStore.getState().addTrigger(trigger);
+        }
+      })
+      .catch(() => {
+        /* handled by caller */
+      });
+  },
+
+  updateTriggerData: (id, payload) => {
+    cron
+      .update(id, payload)
+      .then((res) => {
+        const trigger = (res as { trigger: Trigger }).trigger;
+        if (trigger) {
+          useTriggerStore.getState().updateTrigger(trigger);
+        }
+      })
+      .catch(() => {
+        /* handled by caller */
+      });
+  },
+
+  deleteTrigger: (id) => {
+    cron
+      .remove(id)
+      .then(() => {
+        useTriggerStore.getState().removeTrigger(id);
+      })
+      .catch(() => {
+        /* handled by caller */
+      });
+  },
+
+  toggleTrigger: (id, enabled) => {
+    cron
+      .toggle(id, enabled)
+      .then(() => {
+        const triggers = useTriggerStore.getState().triggers;
+        const existing = triggers.find((t) => t.id === id);
+        if (existing) {
+          useTriggerStore.getState().updateTrigger({ ...existing, enabled });
+        }
+      })
+      .catch(() => {
+        /* handled by caller */
+      });
+  },
+
+  fireTrigger: (id) => {
+    cron.run(id).catch(() => {
+      /* handled by caller */
+    });
+  },
 }));

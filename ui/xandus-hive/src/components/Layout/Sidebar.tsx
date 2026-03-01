@@ -1,5 +1,3 @@
-import { useMemo, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
 import {
   Cpu,
   Bot,
@@ -28,18 +26,18 @@ import {
   LogOut,
   Hexagon,
   Sparkles,
+  ShieldCheck,
+  Monitor,
   type LucideIcon,
-} from 'lucide-react';
-import {
-  Collapsible,
-  CollapsibleTrigger,
-  CollapsibleContent,
-} from '@/components/ui/collapsible';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,49 +65,51 @@ interface SidebarProps {
 
 const navGroups: NavGroup[] = [
   {
-    title: 'HIVE',
+    title: "HIVE",
     items: [
-      { icon: Cpu, label: 'Command Center', path: '/hive' },
-      { icon: Bot, label: 'Agents', path: '/hive/agents' },
-      { icon: Sparkles, label: 'Skills', path: '/hive/skills' },
-      { icon: Zap, label: 'Triggers', path: '/hive/triggers' },
-      { icon: Globe, label: 'API Explorer', path: '/hive/api-explorer' },
-      { icon: Terminal, label: 'Console', path: '/hive/console' },
-      { icon: DollarSign, label: 'Cost & Usage', path: '/hive/cost' },
+      { icon: Cpu, label: "Command Center", path: "/hive" },
+      { icon: Bot, label: "Agents", path: "/hive/agents" },
+      { icon: Monitor, label: "Sessions", path: "/hive/sessions" },
+      { icon: ShieldCheck, label: "Approvals", path: "/hive/approvals" },
+      { icon: Sparkles, label: "Skills", path: "/hive/skills" },
+      { icon: Zap, label: "Triggers", path: "/hive/triggers" },
+      { icon: Globe, label: "API Explorer", path: "/hive/api-explorer" },
+      { icon: Terminal, label: "Console", path: "/hive/console" },
+      { icon: DollarSign, label: "Cost & Usage", path: "/hive/cost" },
     ],
   },
   {
-    title: 'WORKSPACE',
+    title: "WORKSPACE",
     items: [
-      { icon: LayoutDashboard, label: 'Dashboard', path: '/workspace' },
-      { icon: KanbanSquare, label: 'Kanban', path: '/workspace/kanban' },
-      { icon: Calendar, label: 'Calendar', path: '/workspace/calendar' },
-      { icon: StickyNote, label: 'Notes', path: '/workspace/notes' },
+      { icon: LayoutDashboard, label: "Dashboard", path: "/workspace" },
+      { icon: KanbanSquare, label: "Kanban", path: "/workspace/kanban" },
+      { icon: Calendar, label: "Calendar", path: "/workspace/calendar" },
+      { icon: StickyNote, label: "Notes", path: "/workspace/notes" },
     ],
   },
   {
-    title: 'SYNERGY',
+    title: "SYNERGY",
     items: [
-      { icon: Hammer, label: 'Overview', path: '/synergy' },
-      { icon: Users, label: 'Leads', path: '/synergy/leads' },
-      { icon: HardHat, label: 'Subcontractors', path: '/synergy/subs' },
-      { icon: Phone, label: 'Voice Calls', path: '/synergy/calls' },
+      { icon: Hammer, label: "Overview", path: "/synergy" },
+      { icon: Users, label: "Leads", path: "/synergy/leads" },
+      { icon: HardHat, label: "Subcontractors", path: "/synergy/subs" },
+      { icon: Phone, label: "Voice Calls", path: "/synergy/calls" },
     ],
   },
   {
-    title: 'REAL ESTATE',
+    title: "REAL ESTATE",
     items: [
-      { icon: Building2, label: 'Properties', path: '/realestate' },
-      { icon: TrendingUp, label: 'Deal Analysis', path: '/realestate/deals' },
-      { icon: MapPin, label: 'Market Data', path: '/realestate/market' },
+      { icon: Building2, label: "Properties", path: "/realestate" },
+      { icon: TrendingUp, label: "Deal Analysis", path: "/realestate/deals" },
+      { icon: MapPin, label: "Market Data", path: "/realestate/market" },
     ],
   },
   {
-    title: 'FINANCE',
+    title: "FINANCE",
     items: [
-      { icon: Wallet, label: 'Accounts', path: '/finance' },
-      { icon: Receipt, label: 'Transactions', path: '/finance/transactions' },
-      { icon: PiggyBank, label: 'Planning', path: '/finance/planning' },
+      { icon: Wallet, label: "Accounts", path: "/finance" },
+      { icon: Receipt, label: "Transactions", path: "/finance/transactions" },
+      { icon: PiggyBank, label: "Planning", path: "/finance/planning" },
     ],
   },
 ];
@@ -122,8 +122,10 @@ const navGroups: NavGroup[] = [
 function isGroupActive(group: NavGroup, pathname: string): boolean {
   return group.items.some((item) => {
     // Exact match or starts-with for nested routes
-    if (item.path === '/') {return pathname === '/';}
-    return pathname === item.path || pathname.startsWith(item.path + '/');
+    if (item.path === "/") {
+      return pathname === "/";
+    }
+    return pathname === item.path || pathname.startsWith(item.path + "/");
   });
 }
 
@@ -131,24 +133,24 @@ function isGroupActive(group: NavGroup, pathname: string): boolean {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function SidebarNavItem({
-  item,
-  collapsed,
-}: {
-  item: NavItem;
-  collapsed: boolean;
-}) {
+function SidebarNavItem({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   return (
     <NavLink
       to={item.path}
-      end={item.path === '/hive' || item.path === '/workspace' || item.path === '/synergy' || item.path === '/realestate' || item.path === '/finance'}
+      end={
+        item.path === "/hive" ||
+        item.path === "/workspace" ||
+        item.path === "/synergy" ||
+        item.path === "/realestate" ||
+        item.path === "/finance"
+      }
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+          "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
           isActive
-            ? 'bg-indigo-600/20 text-indigo-400'
-            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-          collapsed && 'justify-center px-2',
+            ? "bg-indigo-600/20 text-indigo-400"
+            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+          collapsed && "justify-center px-2",
         )
       }
       title={collapsed ? item.label : undefined}
@@ -216,8 +218,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-border bg-card text-card-foreground transition-all duration-300',
-        collapsed ? 'w-16' : 'w-64',
+        "fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-border bg-card text-card-foreground transition-all duration-300",
+        collapsed ? "w-16" : "w-64",
       )}
     >
       {/* ── Brand header ─────────────────────────────────── */}
@@ -284,14 +286,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           to="/settings"
           className={({ isActive }) =>
             cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
               isActive
-                ? 'bg-indigo-600/20 text-indigo-400'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-              collapsed && 'justify-center px-2',
+                ? "bg-indigo-600/20 text-indigo-400"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+              collapsed && "justify-center px-2",
             )
           }
-          title={collapsed ? 'Settings' : undefined}
+          title={collapsed ? "Settings" : undefined}
         >
           <Settings size={18} className="shrink-0" />
           {!collapsed && <span>Settings</span>}
@@ -312,15 +314,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <div className="space-y-3">
             <div className="flex items-center gap-3 px-2">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-medium text-white">
-                {user?.full_name?.charAt(0) || 'U'}
+                {user?.full_name?.charAt(0) || "U"}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {user?.full_name}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {user?.email}
-                </p>
+                <p className="truncate text-sm font-medium text-foreground">{user?.full_name}</p>
+                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
               </div>
             </div>
             <button

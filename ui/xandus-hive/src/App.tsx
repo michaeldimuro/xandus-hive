@@ -1,45 +1,41 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { BusinessProvider } from './contexts/BusinessContext';
-import { MainLayout } from './components/Layout';
-import { LoginPage } from './pages/Auth';
-
-// ── Hive ────────────────────────────────────────────────────────────────────
-import CommandCenterPage from '@/modules/hive/pages/CommandCenterPage';
-import AgentsPage from '@/modules/hive/pages/AgentsPage';
-import AgentDetailPage from '@/modules/hive/pages/AgentDetailPage';
-import TriggersPage from '@/modules/hive/pages/TriggersPage';
-import ApiExplorerPage from '@/modules/hive/pages/ApiExplorerPage';
-import ConsolePage from '@/modules/hive/pages/ConsolePage';
-import CostUsagePage from '@/modules/hive/pages/CostUsagePage';
-import SkillsPage from '@/modules/hive/pages/SkillsPage';
-
-// ── Workspace ───────────────────────────────────────────────────────────────
-import WorkspaceDashboardPage from '@/modules/workspace/pages/WorkspaceDashboardPage';
-import KanbanPage from '@/modules/workspace/pages/KanbanPage';
-import DoneTasksPage from '@/modules/workspace/pages/DoneTasksPage';
-import CalendarPage from '@/modules/workspace/pages/CalendarPage';
-import NotesPage from '@/modules/workspace/pages/NotesPage';
-
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // ── Synergy (Contracting) ───────────────────────────────────────────────────
-import ContractingOverviewPage from '@/modules/contracting/pages/ContractingOverviewPage';
-import LeadsPage from '@/modules/contracting/pages/LeadsPage';
-import SubcontractorsPage from '@/modules/contracting/pages/SubcontractorsPage';
-import VoiceCallsPage from '@/modules/contracting/pages/VoiceCallsPage';
-
-// ── Real Estate ─────────────────────────────────────────────────────────────
-import PropertiesPage from '@/modules/realestate/pages/PropertiesPage';
-import PropertyDetailPage from '@/pages/RealEstate/PropertyDetailPage';
-import DealAnalysisPage from '@/modules/realestate/pages/DealAnalysisPage';
-import MarketDataPage from '@/modules/realestate/pages/MarketDataPage';
-
+import ContractingOverviewPage from "@/modules/contracting/pages/ContractingOverviewPage";
+import LeadsPage from "@/modules/contracting/pages/LeadsPage";
+import SubcontractorsPage from "@/modules/contracting/pages/SubcontractorsPage";
+import VoiceCallsPage from "@/modules/contracting/pages/VoiceCallsPage";
 // ── Finance ─────────────────────────────────────────────────────────────────
-import AccountsPage from '@/modules/finance/pages/AccountsPage';
-import TransactionsPage from '@/modules/finance/pages/TransactionsPage';
-import PlanningPage from '@/modules/finance/pages/PlanningPage';
-
+import AccountsPage from "@/modules/finance/pages/AccountsPage";
+import PlanningPage from "@/modules/finance/pages/PlanningPage";
+import TransactionsPage from "@/modules/finance/pages/TransactionsPage";
+import AgentDetailPage from "@/modules/hive/pages/AgentDetailPage";
+import AgentsPage from "@/modules/hive/pages/AgentsPage";
+import ApiExplorerPage from "@/modules/hive/pages/ApiExplorerPage";
+import ApprovalsPage from "@/modules/hive/pages/ApprovalsPage";
+// ── Hive ────────────────────────────────────────────────────────────────────
+import CommandCenterPage from "@/modules/hive/pages/CommandCenterPage";
+import ConsolePage from "@/modules/hive/pages/ConsolePage";
+import CostUsagePage from "@/modules/hive/pages/CostUsagePage";
+import SessionsPage from "@/modules/hive/pages/SessionsPage";
+import SkillsPage from "@/modules/hive/pages/SkillsPage";
+import TriggersPage from "@/modules/hive/pages/TriggersPage";
+import DealAnalysisPage from "@/modules/realestate/pages/DealAnalysisPage";
+import MarketDataPage from "@/modules/realestate/pages/MarketDataPage";
+// ── Real Estate ─────────────────────────────────────────────────────────────
+import PropertiesPage from "@/modules/realestate/pages/PropertiesPage";
 // ── Settings ────────────────────────────────────────────────────────────────
-import SettingsPage from '@/modules/settings/pages/SettingsPage';
+import SettingsPage from "@/modules/settings/pages/SettingsPage";
+import CalendarPage from "@/modules/workspace/pages/CalendarPage";
+import DoneTasksPage from "@/modules/workspace/pages/DoneTasksPage";
+import KanbanPage from "@/modules/workspace/pages/KanbanPage";
+import NotesPage from "@/modules/workspace/pages/NotesPage";
+// ── Workspace ───────────────────────────────────────────────────────────────
+import WorkspaceDashboardPage from "@/modules/workspace/pages/WorkspaceDashboardPage";
+import PropertyDetailPage from "@/pages/RealEstate/PropertyDetailPage";
+import { MainLayout } from "./components/Layout";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { BusinessProvider } from "./contexts/BusinessContext";
+import { LoginPage } from "./pages/Auth";
 
 // ── Screens ─────────────────────────────────────────────────────────────────
 
@@ -57,8 +53,12 @@ function LoadingScreen() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
 
-  if (loading) {return <LoadingScreen />;}
-  if (!session) {return <Navigate to="/login" replace />;}
+  if (loading) {
+    return <LoadingScreen />;
+  }
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
 
   return <>{children}</>;
 }
@@ -66,8 +66,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
 
-  if (loading) {return <LoadingScreen />;}
-  if (session) {return <Navigate to="/hive" replace />;}
+  if (loading) {
+    return <LoadingScreen />;
+  }
+  if (session) {
+    return <Navigate to="/hive" replace />;
+  }
 
   return <>{children}</>;
 }
@@ -108,6 +112,8 @@ function App() {
             <Route path="hive/agents/:id" element={<AgentDetailPage />} />
             <Route path="hive/triggers" element={<TriggersPage />} />
             <Route path="hive/api-explorer" element={<ApiExplorerPage />} />
+            <Route path="hive/sessions" element={<SessionsPage />} />
+            <Route path="hive/approvals" element={<ApprovalsPage />} />
             <Route path="hive/console" element={<ConsolePage />} />
             <Route path="hive/cost" element={<CostUsagePage />} />
             <Route path="hive/skills" element={<SkillsPage />} />

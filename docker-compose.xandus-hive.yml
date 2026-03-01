@@ -1,0 +1,32 @@
+# docker-compose.xandus-hive.yml
+# Xandus Hive: OpenClaw gateway + Xandus dashboard
+#
+# Usage:
+#   docker compose -f docker-compose.xandus-hive.yml up --build -d
+#   docker compose -f docker-compose.xandus-hive.yml logs -f
+
+services:
+  xandus-hive:
+    build:
+      context: .
+      dockerfile: Dockerfile.xandus-hive
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+    volumes:
+      - openclaw-data:/home/node/.openclaw
+      - ./skills:/app/skills
+    environment:
+      - HOME=/home/node
+      - TERM=xterm-256color
+      - ANTHROPIC_API_KEY
+      - SUPABASE_URL
+      - SUPABASE_SERVICE_KEY
+      - TELEGRAM_BOT_TOKEN
+      - BRAVE_SEARCH_API_KEY
+      - OPENCLAW_GATEWAY_TOKEN
+      - OPENCLAW_GATEWAY_PASSWORD
+    init: true
+    restart: unless-stopped
+
+volumes:
+  openclaw-data:

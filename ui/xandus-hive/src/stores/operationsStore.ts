@@ -1,17 +1,17 @@
 /**
  * Hive Operations Store
- * Zustand store for real-time agent activity via WebSocket
+ * Zustand store for real-time agent activity via OpenClaw WebSocket protocol
  */
 
-import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 import type {
   OperationsRoomState,
   Agent,
   SubAgent,
   TaskFlow,
   OperationEvent,
-} from '../types/operations';
+} from "../types/operations";
 
 export interface QueueGroup {
   chatJid: string;
@@ -38,13 +38,13 @@ export interface ScheduledTaskInfo {
   group_folder: string;
   chat_jid: string;
   prompt: string;
-  schedule_type: 'cron' | 'interval' | 'once';
+  schedule_type: "cron" | "interval" | "once";
   schedule_value: string;
-  context_mode: 'group' | 'isolated';
+  context_mode: "group" | "isolated";
   next_run: string | null;
   last_run: string | null;
   last_result: string | null;
-  status: 'active' | 'paused' | 'completed';
+  status: "active" | "paused" | "completed";
   created_at: string;
 }
 
@@ -84,91 +84,126 @@ export const useOperationsStore = create<OperationsStoreState>()(
       scheduledTasks: [],
 
       addEvent: (event: OperationEvent) =>
-        set((state) => ({
-          liveFeed: [event, ...state.liveFeed].slice(0, 50),
-          lastEventAt: new Date(),
-          unseenEventCount: state.unseenEventCount + 1,
-        }), false, 'addEvent'),
+        set(
+          (state) => ({
+            liveFeed: [event, ...state.liveFeed].slice(0, 50),
+            lastEventAt: new Date(),
+            unseenEventCount: state.unseenEventCount + 1,
+          }),
+          false,
+          "addEvent",
+        ),
 
       updateMainAgent: (updates: Partial<Agent>) =>
-        set((state) => ({
-          mainAgent: state.mainAgent
-            ? { ...state.mainAgent, ...updates, lastActivityAt: updates.lastActivityAt || new Date() }
-            : {
-                id: updates.id || 'unknown',
-                name: updates.name || 'Agent',
-                status: updates.status || 'idle',
-                currentTask: updates.currentTask || '',
-                progress: updates.progress || 0,
-                startedAt: updates.startedAt || new Date(),
-                lastActivityAt: new Date(),
-                ...updates,
-              },
-        }), false, 'updateMainAgent'),
+        set(
+          (state) => ({
+            mainAgent: state.mainAgent
+              ? {
+                  ...state.mainAgent,
+                  ...updates,
+                  lastActivityAt: updates.lastActivityAt || new Date(),
+                }
+              : {
+                  id: updates.id || "unknown",
+                  name: updates.name || "Agent",
+                  status: updates.status || "idle",
+                  currentTask: updates.currentTask || "",
+                  progress: updates.progress || 0,
+                  startedAt: updates.startedAt || new Date(),
+                  lastActivityAt: new Date(),
+                  ...updates,
+                },
+          }),
+          false,
+          "updateMainAgent",
+        ),
 
       addSubAgent: (agent: SubAgent) =>
-        set((state) => ({
-          subAgents: { ...state.subAgents, [agent.id]: agent },
-        }), false, 'addSubAgent'),
+        set(
+          (state) => ({
+            subAgents: { ...state.subAgents, [agent.id]: agent },
+          }),
+          false,
+          "addSubAgent",
+        ),
 
       updateSubAgent: (id: string, updates: Partial<SubAgent>) =>
-        set((state) => {
-          const existing = state.subAgents[id];
-          if (!existing) {return state;}
-          return {
-            subAgents: {
-              ...state.subAgents,
-              [id]: { ...existing, ...updates, lastActivityAt: updates.lastActivityAt || new Date() },
-            },
-          };
-        }, false, 'updateSubAgent'),
+        set(
+          (state) => {
+            const existing = state.subAgents[id];
+            if (!existing) {
+              return state;
+            }
+            return {
+              subAgents: {
+                ...state.subAgents,
+                [id]: {
+                  ...existing,
+                  ...updates,
+                  lastActivityAt: updates.lastActivityAt || new Date(),
+                },
+              },
+            };
+          },
+          false,
+          "updateSubAgent",
+        ),
 
       removeSubAgent: (id: string) =>
-        set((state) => {
-          const { [id]: _, ...rest } = state.subAgents;
-          return { subAgents: rest };
-        }, false, 'removeSubAgent'),
+        set(
+          (state) => {
+            const { [id]: _, ...rest } = state.subAgents;
+            return { subAgents: rest };
+          },
+          false,
+          "removeSubAgent",
+        ),
 
-      updateTaskFlow: (taskFlow: TaskFlow) =>
-        set({ taskFlow }, false, 'updateTaskFlow'),
+      updateTaskFlow: (taskFlow: TaskFlow) => set({ taskFlow }, false, "updateTaskFlow"),
 
       setConnected: (status: boolean, error: string | null = null) =>
         set(
           { isConnected: status, connectionError: error },
           false,
-          status ? 'connectionEstablished' : `connectionFailed: ${error}`
+          status ? "connectionEstablished" : `connectionFailed: ${error}`,
         ),
 
-      clearEvents: () =>
-        set({ liveFeed: [] }, false, 'clearEvents'),
+      clearEvents: () => set({ liveFeed: [] }, false, "clearEvents"),
 
-      setQueueState: (state: QueueState) =>
-        set({ queueState: state }, false, 'setQueueState'),
+      setQueueState: (state: QueueState) => set({ queueState: state }, false, "setQueueState"),
 
       setSystemMetrics: (metrics: SystemMetrics) =>
-        set({ systemMetrics: metrics }, false, 'setSystemMetrics'),
+        set({ systemMetrics: metrics }, false, "setSystemMetrics"),
 
       setScheduledTasks: (tasks: ScheduledTaskInfo[]) =>
-        set({ scheduledTasks: tasks }, false, 'setScheduledTasks'),
+        set({ scheduledTasks: tasks }, false, "setScheduledTasks"),
 
       upsertScheduledTask: (task: ScheduledTaskInfo) =>
-        set((state) => {
-          const idx = state.scheduledTasks.findIndex((t) => t.id === task.id);
-          if (idx >= 0) {
-            const updated = [...state.scheduledTasks];
-            updated[idx] = task;
-            return { scheduledTasks: updated };
-          }
-          return { scheduledTasks: [task, ...state.scheduledTasks] };
-        }, false, 'upsertScheduledTask'),
+        set(
+          (state) => {
+            const idx = state.scheduledTasks.findIndex((t) => t.id === task.id);
+            if (idx >= 0) {
+              const updated = [...state.scheduledTasks];
+              updated[idx] = task;
+              return { scheduledTasks: updated };
+            }
+            return { scheduledTasks: [task, ...state.scheduledTasks] };
+          },
+          false,
+          "upsertScheduledTask",
+        ),
 
       removeScheduledTask: (taskId: string) =>
-        set((state) => ({
-          scheduledTasks: state.scheduledTasks.filter((t) => t.id !== taskId),
-        }), false, 'removeScheduledTask'),
+        set(
+          (state) => ({
+            scheduledTasks: state.scheduledTasks.filter((t) => t.id !== taskId),
+          }),
+          false,
+          "removeScheduledTask",
+        ),
     }),
-    { name: 'operations-store', enabled: import.meta.env.DEV }
-  )
+    { name: "operations-store", enabled: import.meta.env.DEV },
+  ),
 );
 
 // Selector hooks

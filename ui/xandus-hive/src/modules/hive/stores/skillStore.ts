@@ -1,10 +1,10 @@
-import { create } from 'zustand';
-import * as ws from '@/lib/websocket';
+import { create } from "zustand";
+import { skills } from "@/lib/openclaw-ws";
 
 export interface SkillMeta {
   name: string;
   description: string;
-  scope: 'global' | 'library';
+  scope: "global" | "library";
   supportingFiles: string[];
 }
 
@@ -31,43 +31,79 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
   loading: true,
   activeSkill: null,
 
-  setSkills: (skills) => set({ skills, loading: false }),
+  setSkills: (skillList) => set({ skills: skillList, loading: false }),
   setActiveSkill: (skill) => set({ activeSkill: skill }),
 
   fetchSkills: () => {
-    ws.send({ type: 'skill.list' });
+    skills
+      .list()
+      .then((res) => {
+        const list = (res as { skills: SkillMeta[] }).skills;
+        if (Array.isArray(list)) {
+          useSkillStore.getState().setSkills(list);
+        }
+      })
+      .catch(() => {
+        /* handled by caller */
+      });
   },
 
   getSkillContent: (name, scope) => {
-    ws.send({ type: 'skill.get', name, scope });
+    skills
+      .get(name, scope)
+      .then((res) => {
+        const skill = (res as { skill: SkillFull }).skill;
+        if (skill) {
+          useSkillStore.getState().setActiveSkill(skill);
+        }
+      })
+      .catch(() => {
+        /* handled by caller */
+      });
   },
 
   saveSkill: (name, scope, content) => {
-    ws.send({ type: 'skill.save', name, scope, content });
+    skills
+      .save(name, scope, content)
+      .then(() => {
+        get().fetchSkills();
+      })
+      .catch(() => {
+        /* handled by caller */
+      });
   },
 
   deleteSkill: (name, scope) => {
-    ws.send({ type: 'skill.delete', name, scope });
+    skills
+      .delete(name, scope)
+      .then(() => {
+        get().fetchSkills();
+      })
+      .catch(() => {
+        /* handled by caller */
+      });
   },
 
-  assignSkills: (agentId, skills) => {
-    ws.send({ type: 'skill.assign', agentId, skills });
+  assignSkills: (agentId, skillNames) => {
+    skills.assign(agentId, skillNames).catch(() => {
+      /* handled by caller */
+    });
   },
 
   uploadSkill: async (file, scope) => {
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('scope', scope);
+    formData.append("file", file);
+    formData.append("scope", scope);
 
     const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
     const res = await fetch(`${baseUrl}/api/skills/upload`, {
-      method: 'POST',
+      method: "POST",
       body: formData,
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Upload failed' }));
-      throw new Error(err.error || 'Upload failed');
+      const err = await res.json().catch(() => ({ error: "Upload failed" }));
+      throw new Error(err.error || "Upload failed");
     }
 
     // Refresh skills list after upload

@@ -3,7 +3,6 @@
  * Shows active sessions, queue state, system metrics, agent controls, and cron management.
  */
 
-import { useState } from 'react';
 import {
   Wifi,
   WifiOff,
@@ -17,15 +16,16 @@ import {
   Layers,
   CalendarClock,
   Joystick,
-} from 'lucide-react';
-import * as ws from '@/lib/websocket';
-import { useOperationsStore } from '@/stores/operationsStore';
-import { useHiveWebSocket } from '@/hooks/useHiveWebSocket';
-import { AgentConsole } from './AgentConsole';
-import { ActivityFeed } from './ActivityFeed';
-import { CronManager } from './CronManager';
+} from "lucide-react";
+import { useState } from "react";
+import { useHiveWebSocket } from "@/hooks/useHiveWebSocket";
+import * as ws from "@/lib/openclaw-ws";
+import { useOperationsStore } from "@/stores/operationsStore";
+import { ActivityFeed } from "./ActivityFeed";
+import { AgentConsole } from "./AgentConsole";
+import { CronManager } from "./CronManager";
 
-type Tab = 'control' | 'crons';
+type Tab = "control" | "crons";
 
 export function HiveControlPanel() {
   const { isConnected } = useHiveWebSocket();
@@ -35,29 +35,35 @@ export function HiveControlPanel() {
   const liveFeed = useOperationsStore((s) => s.liveFeed);
   const taskCount = useOperationsStore((s) => s.scheduledTasks.length);
 
-  const [tab, setTab] = useState<Tab>('control');
+  const [tab, setTab] = useState<Tab>("control");
   const [consoleGroup, setConsoleGroup] = useState<string | null>(null);
-  const [triggerJid, setTriggerJid] = useState('');
-  const [triggerPrompt, setTriggerPrompt] = useState('');
-  const [messageJid, setMessageJid] = useState('');
-  const [messageText, setMessageText] = useState('');
-  const [cancelJid, setCancelJid] = useState('');
+  const [triggerJid, setTriggerJid] = useState("");
+  const [triggerPrompt, setTriggerPrompt] = useState("");
+  const [messageJid, setMessageJid] = useState("");
+  const [messageText, setMessageText] = useState("");
+  const [cancelJid, setCancelJid] = useState("");
 
   const handleTrigger = () => {
-    if (!triggerJid || !triggerPrompt) {return;}
-    ws.send({ type: 'agent.trigger', chatJid: triggerJid, prompt: triggerPrompt });
-    setTriggerPrompt('');
+    if (!triggerJid || !triggerPrompt) {
+      return;
+    }
+    void ws.request("agent.trigger", { chatJid: triggerJid, prompt: triggerPrompt });
+    setTriggerPrompt("");
   };
 
   const handleSendMessage = () => {
-    if (!messageJid || !messageText) {return;}
-    ws.send({ type: 'agent.send_message', chatJid: messageJid, text: messageText });
-    setMessageText('');
+    if (!messageJid || !messageText) {
+      return;
+    }
+    void ws.request("agent.send_message", { chatJid: messageJid, text: messageText });
+    setMessageText("");
   };
 
   const handleCancel = () => {
-    if (!cancelJid) {return;}
-    ws.send({ type: 'agent.cancel', chatJid: cancelJid });
+    if (!cancelJid) {
+      return;
+    }
+    void ws.request("agent.cancel", { chatJid: cancelJid });
   };
 
   const formatUptime = (ms: number) => {
@@ -73,27 +79,27 @@ export function HiveControlPanel() {
           <div className="flex items-center gap-6">
             <div>
               <h1 className="text-xl font-bold text-white">Hive Control</h1>
-              <p className="text-xs text-gray-500 mt-0.5">Real-time agent management via WebSocket</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Real-time agent management via WebSocket
+              </p>
             </div>
             {/* Tabs */}
             <div className="flex gap-1 bg-[#0a0a1a] border border-[#1e1e3a] rounded-lg p-0.5">
               <button
-                onClick={() => setTab('control')}
+                onClick={() => setTab("control")}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors ${
-                  tab === 'control'
-                    ? 'bg-[#1a1a3a] text-white'
-                    : 'text-gray-500 hover:text-gray-300'
+                  tab === "control"
+                    ? "bg-[#1a1a3a] text-white"
+                    : "text-gray-500 hover:text-gray-300"
                 }`}
               >
                 <Joystick size={13} />
                 Control
               </button>
               <button
-                onClick={() => setTab('crons')}
+                onClick={() => setTab("crons")}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors ${
-                  tab === 'crons'
-                    ? 'bg-[#1a1a3a] text-white'
-                    : 'text-gray-500 hover:text-gray-300'
+                  tab === "crons" ? "bg-[#1a1a3a] text-white" : "text-gray-500 hover:text-gray-300"
                 }`}
               >
                 <CalendarClock size={13} />
@@ -128,42 +134,52 @@ export function HiveControlPanel() {
           <MetricCard
             icon={<Clock size={18} className="text-blue-400" />}
             label="Uptime"
-            value={systemMetrics ? formatUptime(systemMetrics.uptime) : '--'}
+            value={systemMetrics ? formatUptime(systemMetrics.uptime) : "--"}
           />
           <MetricCard
             icon={<Cpu size={18} className="text-emerald-400" />}
             label="Active Containers"
-            value={queueState ? `${queueState.activeCount} / ${queueState.maxConcurrent}` : (systemMetrics ? String(systemMetrics.containersActive) : '--')}
+            value={
+              queueState
+                ? `${queueState.activeCount} / ${queueState.maxConcurrent}`
+                : systemMetrics
+                  ? String(systemMetrics.containersActive)
+                  : "--"
+            }
           />
           <MetricCard
             icon={<Layers size={18} className="text-amber-400" />}
             label="Queue Waiting"
-            value={queueState ? String(queueState.waitingCount) : '--'}
+            value={queueState ? String(queueState.waitingCount) : "--"}
           />
           <MetricCard
             icon={<DollarSign size={18} className="text-purple-400" />}
             label="Daily Cost"
-            value={systemMetrics ? `$${systemMetrics.dailyCost.toFixed(2)}` : '--'}
+            value={systemMetrics ? `$${systemMetrics.dailyCost.toFixed(2)}` : "--"}
           />
         </div>
 
         {/* Tab Content */}
-        {tab === 'control' && (
+        {tab === "control" && (
           <>
             {/* Main Agent Status */}
             {mainAgent && (
               <div className="bg-[#12122a] border border-[#1e1e3a] rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${mainAgent.status === 'working' ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`} />
+                    <div
+                      className={`w-3 h-3 rounded-full ${mainAgent.status === "working" ? "bg-green-400 animate-pulse" : "bg-gray-600"}`}
+                    />
                     <div>
                       <span className="text-sm font-medium text-white">{mainAgent.name}</span>
                       <span className="text-xs text-gray-500 ml-2">
-                        {mainAgent.status === 'working' ? `Working on ${mainAgent.currentTask}` : 'Idle'}
+                        {mainAgent.status === "working"
+                          ? `Working on ${mainAgent.currentTask}`
+                          : "Idle"}
                       </span>
                     </div>
                   </div>
-                  {mainAgent.status === 'working' && mainAgent.currentTask && (
+                  {mainAgent.status === "working" && mainAgent.currentTask && (
                     <button
                       onClick={() => setConsoleGroup(mainAgent.currentTask)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#1a1a3a] hover:bg-[#252550] rounded-lg transition-colors text-cyan-400"
@@ -226,7 +242,7 @@ export function HiveControlPanel() {
                       placeholder="Message text..."
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                      onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                       className="flex-1 bg-[#0a0a1a] border border-[#1e1e3a] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none"
                     />
                     <button
@@ -268,7 +284,9 @@ export function HiveControlPanel() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Agent Console</h3>
+                    <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                      Agent Console
+                    </h3>
                     {consoleGroup && (
                       <button
                         onClick={() => setConsoleGroup(null)}
@@ -285,7 +303,7 @@ export function HiveControlPanel() {
                           type="text"
                           placeholder="Group folder to attach (e.g. main)"
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
+                            if (e.key === "Enter" && (e.target as HTMLInputElement).value) {
                               setConsoleGroup((e.target as HTMLInputElement).value);
                             }
                           }}
@@ -293,8 +311,12 @@ export function HiveControlPanel() {
                         />
                         <button
                           onClick={(e) => {
-                            const input = (e.target as HTMLElement).parentElement?.querySelector('input');
-                            if (input?.value) {setConsoleGroup(input.value);}
+                            const input = (e.target as HTMLElement).parentElement?.querySelector(
+                              "input",
+                            );
+                            if (input?.value) {
+                              setConsoleGroup(input.value);
+                            }
                           }}
                           className="px-3 py-2 bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 rounded-lg text-sm hover:bg-cyan-600/30 transition-colors"
                         >
@@ -313,13 +335,21 @@ export function HiveControlPanel() {
           </>
         )}
 
-        {tab === 'crons' && <CronManager />}
+        {tab === "crons" && <CronManager />}
       </div>
     </div>
   );
 }
 
-function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function MetricCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="bg-[#12122a] border border-[#1e1e3a] rounded-xl p-4">
       <div className="flex items-center gap-2 mb-2">
@@ -331,7 +361,12 @@ function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: stri
   );
 }
 
-function CommandCard({ title, icon, description, children }: {
+function CommandCard({
+  title,
+  icon,
+  description,
+  children,
+}: {
   title: string;
   icon: React.ReactNode;
   description: string;
@@ -346,9 +381,7 @@ function CommandCard({ title, icon, description, children }: {
           <p className="text-xs text-gray-500">{description}</p>
         </div>
       </div>
-      <div className="p-4 space-y-3">
-        {children}
-      </div>
+      <div className="p-4 space-y-3">{children}</div>
     </div>
   );
 }
