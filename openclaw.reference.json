@@ -1,0 +1,36 @@
+{
+  "$schema": "Reference config for Xandus Hive agent team — ~/.openclaw/openclaw.json does not exist yet",
+  "agents": {
+    "xandus": {
+      "role": "CEO/Orchestrator — dispatches all work",
+      "model": "haiku-4.5",
+      "workspace": "~/.openclaw/workspace"
+    },
+    "atlas": {
+      "role": "Research & Business Analysis",
+      "model": "sonnet-4.5",
+      "workspace": "~/.openclaw/workspace/agents/atlas"
+    },
+    "forge": {
+      "role": "Sole code authority (tmux + Claude Code)",
+      "model": "haiku-4.5",
+      "workspace": "~/.openclaw/workspace/agents/forge"
+    },
+    "prism": {
+      "role": "Marketing & Content Creation",
+      "model": "haiku-4.5",
+      "workspace": "~/.openclaw/workspace/agents/prism"
+    },
+    "sentinel": {
+      "role": "QA gate — approves/rejects Forge's work",
+      "model": "haiku-4.5",
+      "workspace": "~/.openclaw/workspace/agents/sentinel"
+    }
+  },
+  "channels": {
+    "telegram": {
+      "token": "TELEGRAM_BOT_TOKEN"
+    }
+  },
+  "note": "This is a reference config template. Create actual config with: openclaw configure"
+}
