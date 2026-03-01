@@ -1,23 +1,26 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import path from 'path'
+import path from "path";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    outDir: path.resolve(__dirname, "../../dist/control-ui"),
+    emptyOutDir: true,
+  },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@xandus/shared': path.resolve(__dirname, './src/shared'),
+      "@": path.resolve(__dirname, "./src"),
+      "@xandus/shared": path.resolve(__dirname, "./src/shared"),
     },
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:3100',
-      '/ws': {
-        target: 'http://localhost:3100',
+      "/ws": {
+        target: "ws://localhost:18789",
         ws: true,
       },
     },
   },
-})
+});

@@ -29,9 +29,9 @@
  * Generate a UUID v4 (browser-compatible)
  */
 function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
@@ -43,19 +43,19 @@ async function signHMACSHA256(message: string, secret: string): Promise<string> 
   try {
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
-      'raw',
+      "raw",
       encoder.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
+      { name: "HMAC", hash: "SHA-256" },
       false,
-      ['sign']
+      ["sign"],
     );
 
-    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+    const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(message));
     return Array.from(new Uint8Array(signature))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
   } catch (err) {
-    console.error('[Logger] Signing error:', err);
+    console.error("[Logger] Signing error:", err);
     throw err;
   }
 }
@@ -93,9 +93,9 @@ let loggerConfig: LoggerCredentials | null = null;
  */
 export function setLoggerCredentials(credentials: LoggerCredentials): void {
   loggerConfig = credentials;
-  console.log('[Logger] Credentials configured:', {
+  console.log("[Logger] Credentials configured:", {
     agentId: credentials.agentId,
-    sessionId: credentials.sessionId.substring(0, 8) + '...',
+    sessionId: credentials.sessionId.substring(0, 8) + "...",
     url: credentials.loggerUrl,
   });
 }
@@ -112,13 +112,13 @@ export function getLoggerConfig(): LoggerCredentials | null {
  * Automatically signs the request and sends it to the logging webhook
  */
 export async function logOperationEvent(
-  event: OperationEventPayload
+  event: OperationEventPayload,
 ): Promise<{ success: boolean; error?: string; eventId?: string }> {
   try {
     // Get credentials
     if (!loggerConfig) {
-      console.warn('[Logger] Not configured - skipping event log');
-      return { success: false, error: 'Logger not configured' };
+      console.warn("[Logger] Not configured - skipping event log");
+      return { success: false, error: "Logger not configured" };
     }
 
     const { agentId, sessionId, loggerUrl, loggerSecret } = loggerConfig;
@@ -146,22 +146,23 @@ export async function logOperationEvent(
     console.log(`[Logger] Logging event: ${event.type}`);
 
     const response = await fetch(loggerUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'X-Signature': signature,
+        "Content-Type": "application/json",
+        "X-Signature": signature,
       },
       body: requestBody,
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const errorMsg = (errorData as Record<string, unknown>).error || response.statusText;
+      const rawError = (errorData as Record<string, string>).error;
+      const errorMsg = typeof rawError === "string" ? rawError : response.statusText;
       console.error(`[Logger] Logging failed: ${errorMsg}`);
       return { success: false, error: errorMsg };
     }
 
-    const result = await response.json();
+    await response.json();
     console.log(`[Logger] Event logged: ${fullEvent.id}`);
 
     return { success: true, eventId: fullEvent.id };
@@ -178,25 +179,25 @@ export async function logOperationEvent(
 
 export async function logSessionStart(
   agentName: string,
-  agentType: 'main' | 'subagent' = 'main',
+  agentType: "main" | "subagent" = "main",
   initialTask?: string,
-  channel?: string
+  channel?: string,
 ) {
   return logOperationEvent({
-    type: 'agent.session.started',
+    type: "agent.session.started",
     payload: {
       agent_name: agentName,
       agent_type: agentType,
       initial_task: initialTask,
-      channel: channel || 'system',
-      metadata: { version: '1.0' },
+      channel: channel || "system",
+      metadata: { version: "1.0" },
     },
   });
 }
 
-export async function logSessionEnd(summary: string, status: 'completed' | 'failed' = 'completed') {
+export async function logSessionEnd(summary: string, status: "completed" | "failed" = "completed") {
   return logOperationEvent({
-    type: 'agent.session.terminated',
+    type: "agent.session.terminated",
     payload: {
       status,
       summary,
@@ -209,15 +210,15 @@ export async function logSubagentSpawned(
   subagentId: string,
   subagentName: string,
   assignedTask: string,
-  parentSessionId?: string
+  parentSessionId?: string,
 ) {
   return logOperationEvent({
-    type: 'subagent.spawned',
+    type: "subagent.spawned",
     payload: {
       subagent_id: subagentId,
       subagent_name: subagentName,
       assigned_task: assignedTask,
-      status: 'active',
+      status: "active",
       parent_session_id: parentSessionId,
       started_at: new Date().toISOString(),
     },
@@ -227,13 +228,13 @@ export async function logSubagentSpawned(
 export async function logSubagentCompleted(
   subagentName: string,
   summary: string,
-  deliverables: string[] = []
+  deliverables: string[] = [],
 ) {
   return logOperationEvent({
-    type: 'subagent.completed',
+    type: "subagent.completed",
     payload: {
-      status: 'completed',
-      result: 'SUCCESS',
+      status: "completed",
+      result: "SUCCESS",
       summary,
       deliverables,
       total_duration_ms: Date.now(),
@@ -246,34 +247,34 @@ export async function logTaskStateChange(
   oldState: string,
   newState: string,
   taskTitle: string,
-  priority?: string
+  priority?: string,
 ) {
   return logOperationEvent({
-    type: 'task.state_changed',
+    type: "task.state_changed",
     payload: {
       task_id: taskId,
       old_state: oldState,
       new_state: newState,
       title: taskTitle,
-      priority: priority || 'medium',
-      transition_reason: 'Task status updated by agent',
+      priority: priority || "medium",
+      transition_reason: "Task status updated by agent",
     },
   });
 }
 
 export async function logWorkActivity(
-  activityType: 'tool_execution' | 'message' | 'task_update' | 'other',
+  activityType: "tool_execution" | "message" | "task_update" | "other",
   toolName?: string,
-  status?: 'started' | 'completed' | 'failed',
+  status?: "started" | "completed" | "failed",
   result?: string,
-  durationMs?: number
+  durationMs?: number,
 ) {
   return logOperationEvent({
-    type: 'agent.work_activity',
+    type: "agent.work_activity",
     payload: {
       activity_type: activityType,
       tool_name: toolName,
-      status: status || 'completed',
+      status: status || "completed",
       result,
       duration_ms: durationMs || 0,
     },
@@ -281,13 +282,13 @@ export async function logWorkActivity(
 }
 
 export async function logStatusUpdate(
-  status: 'active' | 'idle' | 'working' | 'waiting',
+  status: "active" | "idle" | "working" | "waiting",
   progress?: number,
   currentTask?: string,
-  estimatedCompletion?: string
+  estimatedCompletion?: string,
 ) {
   return logOperationEvent({
-    type: 'agent.status_updated',
+    type: "agent.status_updated",
     payload: {
       status,
       progress_percent: progress || 0,
@@ -299,13 +300,13 @@ export async function logStatusUpdate(
 }
 
 export async function logError(
-  severity: 'warning' | 'error' | 'critical',
+  severity: "warning" | "error" | "critical",
   errorType: string,
   message: string,
-  context?: Record<string, unknown>
+  context?: Record<string, unknown>,
 ) {
   return logOperationEvent({
-    type: 'agent.error',
+    type: "agent.error",
     payload: {
       severity,
       error_type: errorType,
