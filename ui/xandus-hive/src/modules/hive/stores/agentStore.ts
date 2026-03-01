@@ -28,13 +28,32 @@ export const useAgentStore = create<AgentStoreState>((set) => ({
     agents
       .list()
       .then((res) => {
-        const list = (res as { agents: AgentProfile[] }).agents;
+        const data = res as Record<string, unknown>;
+        const list = data?.agents;
         if (Array.isArray(list)) {
-          useAgentStore.getState().setAgents(list);
+          // Map gateway agent rows to AgentProfile shape
+          const mapped: AgentProfile[] = list.map((a: Record<string, unknown>) => ({
+            id: typeof a.id === "string" ? a.id : "",
+            name: typeof a.name === "string" ? a.name : typeof a.id === "string" ? a.id : "",
+            role: typeof a.role === "string" ? a.role : "agent",
+            model_preference: typeof a.model === "string" ? a.model : "",
+            system_prompt: null,
+            skills: Array.isArray(a.skills) ? a.skills : [],
+            mcp_tools: [],
+            groups: [],
+            max_context_tokens: 0,
+            status: "active" as const,
+            created_at: "",
+            updated_at: "",
+          }));
+          useAgentStore.getState().setAgents(mapped);
+        } else {
+          // No agents array returned; mark loading done
+          useAgentStore.getState().setAgents([]);
         }
       })
       .catch(() => {
-        /* handled by caller */
+        useAgentStore.getState().setAgents([]);
       });
   },
 

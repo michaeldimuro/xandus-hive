@@ -143,7 +143,7 @@ function sendConnectFrame() {
     minProtocol: 3,
     maxProtocol: 3,
     client: {
-      id: config.clientName ?? "xandus-hive",
+      id: config.clientName ?? "openclaw-control-ui",
       version: "1.0.0",
       platform: navigator?.platform ?? "web",
       mode: "ui",

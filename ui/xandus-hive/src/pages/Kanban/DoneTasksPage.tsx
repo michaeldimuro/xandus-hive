@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Calendar, Clock } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
-import { useAuth } from '@/contexts/AuthContext';
-import { useBusiness } from '@/contexts/BusinessContext';
-import { supabase } from '@/lib/supabase';
-import type { Task } from '@/types';
-import { ASSIGNEES } from '@/types';
+import { format, formatDistanceToNow } from "date-fns";
+import { ArrowLeft, CheckCircle2, Calendar, Clock } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { supabase } from "@/lib/supabase";
+import type { Task } from "@/types";
+import { ASSIGNEES } from "@/types";
 
 export function DoneTasksPage() {
   const { user } = useAuth();
@@ -16,7 +16,7 @@ export function DoneTasksPage() {
 
   useEffect(() => {
     if (user) {
-      fetchDoneTasks();
+      void fetchDoneTasks();
     }
   }, [user]);
 
@@ -24,14 +24,13 @@ export function DoneTasksPage() {
     setLoading(true);
     // Fetch done tasks sorted by most recently updated
     const { data, error } = await supabase
-      .from('tasks')
-      .select('*, project:projects(*)')
-      .eq('user_id', user?.id)
-      .eq('status', 'done')
-      .order('updated_at', { ascending: false });
+      .from("tasks")
+      .select("*, project:projects(*)")
+      .eq("status", "done")
+      .order("updated_at", { ascending: false });
 
     if (error) {
-      console.error('Error fetching done tasks:', error);
+      console.error("Error fetching done tasks:", error);
     } else {
       setTasks(data || []);
     }
@@ -39,8 +38,10 @@ export function DoneTasksPage() {
   };
 
   const getAssigneeName = (assigneeId?: string) => {
-    if (!assigneeId) {return 'Unassigned';}
-    const assignee = ASSIGNEES.find(a => a.id === assigneeId);
+    if (!assigneeId) {
+      return "Unassigned";
+    }
+    const assignee = ASSIGNEES.find((a) => a.id === assigneeId);
     return assignee?.name || assigneeId;
   };
 
@@ -57,7 +58,7 @@ export function DoneTasksPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link
-          to="/kanban"
+          to="/workspace/kanban"
           className="p-2 hover:bg-[#1a1a3a] rounded-lg text-gray-400 hover:text-white transition"
         >
           <ArrowLeft size={20} />
@@ -68,7 +69,7 @@ export function DoneTasksPage() {
             Completed Tasks
           </h1>
           <p className="text-gray-400 mt-1">
-            {tasks.length} task{tasks.length !== 1 ? 's' : ''} completed • Sorted by most recent
+            {tasks.length} task{tasks.length !== 1 ? "s" : ""} completed • Sorted by most recent
           </p>
         </div>
       </div>
@@ -83,10 +84,7 @@ export function DoneTasksPage() {
       ) : (
         <div className="space-y-3">
           {tasks.map((task) => (
-            <div
-              key={task.id}
-              className="glass rounded-xl p-4 hover:bg-[#1a1a3a]/50 transition"
-            >
+            <div key={task.id} className="glass rounded-xl p-4 hover:bg-[#1a1a3a]/50 transition">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
@@ -111,7 +109,7 @@ export function DoneTasksPage() {
                   </div>
 
                   <h3 className="font-medium text-white line-through opacity-70">{task.title}</h3>
-                  
+
                   {task.description && (
                     <p className="text-sm text-gray-500 mt-1 line-clamp-2">{task.description}</p>
                   )}
@@ -120,7 +118,9 @@ export function DoneTasksPage() {
                   {task.review_outcome && (
                     <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 mt-2">
                       <span className="text-xs font-medium text-purple-400">📋 Outcome:</span>
-                      <p className="text-sm text-gray-300 mt-1 line-clamp-3 whitespace-pre-wrap">{task.review_outcome}</p>
+                      <p className="text-sm text-gray-300 mt-1 line-clamp-3 whitespace-pre-wrap">
+                        {task.review_outcome}
+                      </p>
                     </div>
                   )}
 
@@ -136,14 +136,15 @@ export function DoneTasksPage() {
                     {/* Updated at */}
                     <span className="flex items-center gap-1">
                       <Clock size={12} />
-                      Completed {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
+                      Completed{" "}
+                      {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
                     </span>
 
                     {/* Due date if exists */}
                     {task.due_date && (
                       <span className="flex items-center gap-1">
                         <Calendar size={12} />
-                        Due {format(new Date(task.due_date), 'MMM d')}
+                        Due {format(new Date(task.due_date), "MMM d")}
                       </span>
                     )}
                   </div>

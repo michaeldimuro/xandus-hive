@@ -108,9 +108,12 @@ export default function CostUsagePage() {
         });
         setError(null);
       })
-      .catch(() => {
+      .catch((err) => {
         if (mounted) {
-          setError("Failed to load cost data");
+          const msg = err instanceof Error ? err.message : "Failed to load cost data";
+          // xandus.cost.* methods are provided by the cost-aggregator plugin.
+          // If methods are unknown, the plugin may not be loaded.
+          setError(msg.includes("unknown method") ? "Cost aggregator plugin not loaded" : msg);
         }
       })
       .finally(() => {

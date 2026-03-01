@@ -3,6 +3,7 @@ export function buildControlUiCspHeader(): string {
   // (UI uses a lot of inline style attributes in templates).
   // Keep Google Fonts origins explicit in CSP for deployments that load
   // external Google Fonts stylesheets/font files.
+  // Allow *.supabase.co for direct client-side Supabase auth/data queries.
   return [
     "default-src 'self'",
     "base-uri 'none'",
@@ -12,6 +13,6 @@ export function buildControlUiCspHeader(): string {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https:",
     "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' ws: wss:",
+    "connect-src 'self' ws: wss: https://*.supabase.co",
   ].join("; ");
 }

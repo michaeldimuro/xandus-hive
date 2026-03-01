@@ -1,21 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import {
-  TrendingUp,
-  CheckCircle2,
-  Clock,
-  Users,
-  Calendar,
-  ArrowUpRight,
-  ArrowDownRight,
-  Hexagon,
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { format, formatDistanceToNow } from 'date-fns';
-import { useBusiness } from '@/contexts/BusinessContext';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import type { Task, Lead, Business } from '@/types';
-import { ASSIGNEES } from '@/types';
+import { TrendingUp, CheckCircle2, Clock, Users, Calendar, Hexagon } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { supabase, supabaseConfigured } from "@/lib/supabase";
+import type { Lead } from "@/modules/contracting/stores/leadsStore";
+import type { Task } from "@/types";
+import { ASSIGNEES } from "@/types";
 
 interface Stats {
   totalTasks: number;
@@ -26,7 +17,7 @@ interface Stats {
 }
 
 interface BusinessStats {
-  business: Business;
+  business: string;
   name: string;
   color: string;
   tasks: number;
@@ -34,7 +25,7 @@ interface BusinessStats {
 }
 
 export function DashboardPage() {
-  const { businesses, getBusinessName, getBusinessColor } = useBusiness();
+  const { businesses, getBusinessColor } = useBusiness();
   const { user } = useAuth();
   const [stats, setStats] = useState<Stats>({
     totalTasks: 0,
@@ -49,61 +40,37 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('[Dashboard] useEffect triggered:', { 
-      user: user ? `${user.full_name} (${user.id})` : 'null'
-    });
-    
-    if (user) {
-      console.log('[Dashboard] ✓ User authenticated, fetching data...');
-      fetchDashboardData();
-    } else {
-      console.log('[Dashboard] No user yet, waiting...');
+    if (!supabaseConfigured) {
+      setLoading(false);
+      return;
     }
-    
-    // Safety timeout: if dashboard doesn't load within 10 seconds, stop loading
-    const timeout = setTimeout(() => {
-      if (loading) {
-        console.warn('[Dashboard] ⚠️ Loading timeout (10s), stopping loading state');
-        console.warn('[Dashboard] State at timeout:', { user: !!user });
-        setLoading(false);
-      }
-    }, 10000);
-    
-    return () => clearTimeout(timeout);
+    if (user) {
+      void fetchDashboardData();
+    }
   }, [user]);
 
   const fetchDashboardData = async () => {
-    console.log('[Dashboard] fetchDashboardData called, user.id:', user?.id);
     setLoading(true);
     try {
-      // Fetch ALL tasks across all businesses
-      const { data: allTasks, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*, project:projects(*)')
-        .eq('user_id', user?.id)
-        .order('updated_at', { ascending: false });
+      // Fetch tasks (RLS handles user scoping)
+      const { data: allTasks } = await supabase
+        .from("tasks")
+        .select("*, project:projects(*)")
+        .order("updated_at", { ascending: false });
 
-      if (tasksError) {
-        console.error('[Dashboard] Error fetching tasks:', tasksError);
-      } else {
-        console.log('[Dashboard] Tasks fetched:', allTasks?.length || 0);
-      }
-
-      // Fetch ALL leads across all businesses
+      // Fetch recent leads (RLS handles user scoping)
       const { data: allLeads } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false })
+        .from("leads")
+        .select("*")
+        .order("created_at", { ascending: false })
         .limit(5);
 
       // Fetch upcoming events
       const { data: events } = await supabase
-        .from('calendar_events')
-        .select('*')
-        .eq('user_id', user?.id)
-        .gte('start_time', new Date().toISOString())
-        .order('start_time', { ascending: true })
+        .from("calendar_events")
+        .select("*")
+        .gte("start_at", new Date().toISOString())
+        .order("start_at", { ascending: true })
         .limit(5);
 
       const tasks = allTasks || [];
@@ -112,69 +79,72 @@ export function DashboardPage() {
       // Calculate overall stats
       setStats({
         totalTasks: tasks.length,
-        completedTasks: tasks.filter(t => t.status === 'done').length,
-        inProgressTasks: tasks.filter(t => t.status === 'in_progress' || t.status === 'review').length,
+        completedTasks: tasks.filter((t) => t.status === "done").length,
+        inProgressTasks: tasks.filter((t) => t.status === "in_progress" || t.status === "review")
+          .length,
         totalLeads: leads.length,
         upcomingEvents: events?.length || 0,
       });
 
       // Calculate per-business stats
-      const bStats: BusinessStats[] = businesses.map(b => {
-        const bTasks = tasks.filter(t => t.project?.business === b.id);
+      const bStats: BusinessStats[] = businesses.map((b) => {
+        const bTasks = tasks.filter((t) => t.project?.business === b.id);
         return {
           business: b.id,
           name: b.name,
           color: b.color,
           tasks: bTasks.length,
-          completed: bTasks.filter(t => t.status === 'done').length,
+          completed: bTasks.filter((t) => t.status === "done").length,
         };
       });
       setBusinessStats(bStats);
 
       // Get recent non-done tasks
-      setRecentTasks(tasks.filter(t => t.status !== 'done').slice(0, 5));
+      setRecentTasks(tasks.filter((t) => t.status !== "done").slice(0, 5));
       setRecentLeads(leads);
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      console.error("Error fetching dashboard data:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const getAssigneeName = (assigneeId?: string) => {
-    if (!assigneeId) {return 'Unassigned';}
-    const assignee = ASSIGNEES.find(a => a.id === assigneeId);
+    if (!assigneeId) {
+      return "Unassigned";
+    }
+    const assignee = ASSIGNEES.find((a) => a.id === assigneeId);
     return assignee?.name || assigneeId;
   };
 
   const statCards = [
     {
-      title: 'Total Tasks',
+      title: "Total Tasks",
       value: stats.totalTasks,
       icon: CheckCircle2,
-      color: 'from-blue-500 to-indigo-600',
-      bgGlow: 'bg-blue-500/10',
+      color: "from-blue-500 to-indigo-600",
+      bgGlow: "bg-blue-500/10",
     },
     {
-      title: 'Completed',
+      title: "Completed",
       value: stats.completedTasks,
       icon: TrendingUp,
-      color: 'from-green-500 to-emerald-600',
-      bgGlow: 'bg-green-500/10',
+      color: "from-green-500 to-emerald-600",
+      bgGlow: "bg-green-500/10",
     },
     {
-      title: 'In Progress',
+      title: "In Progress",
       value: stats.inProgressTasks,
       icon: Clock,
-      color: 'from-amber-500 to-orange-600',
-      bgGlow: 'bg-amber-500/10',
+      color: "from-amber-500 to-orange-600",
+      bgGlow: "bg-amber-500/10",
     },
     {
-      title: 'Active Leads',
+      title: "Active Leads",
       value: stats.totalLeads,
       icon: Users,
-      color: 'from-purple-500 to-violet-600',
-      bgGlow: 'bg-purple-500/10',
+      color: "from-purple-500 to-violet-600",
+      bgGlow: "bg-purple-500/10",
     },
   ];
 
@@ -202,10 +172,7 @@ export function DashboardPage() {
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat) => (
-          <div
-            key={stat.title}
-            className="glass rounded-xl p-6 relative overflow-hidden"
-          >
+          <div key={stat.title} className="glass rounded-xl p-6 relative overflow-hidden">
             <div className={`absolute inset-0 ${stat.bgGlow} opacity-50`} />
             <div className="relative">
               <div className="flex items-center justify-between mb-4">
@@ -233,10 +200,7 @@ export function DashboardPage() {
               style={{ borderLeftColor: b.color }}
             >
               <div className="flex items-center gap-2 mb-2">
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: b.color }}
-                />
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: b.color }} />
                 <span className="font-medium text-white">{b.name}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
@@ -265,7 +229,7 @@ export function DashboardPage() {
         <div className="glass rounded-xl">
           <div className="px-6 py-4 border-b border-[#2a2a4a] flex items-center justify-between">
             <h2 className="font-semibold text-white">Recent Tasks</h2>
-            <Link to="/kanban" className="text-sm text-indigo-400 hover:text-indigo-300">
+            <Link to="/workspace/kanban" className="text-sm text-indigo-400 hover:text-indigo-300">
               View all →
             </Link>
           </div>
@@ -286,7 +250,7 @@ export function DashboardPage() {
                       style={{
                         backgroundColor: task.project?.business
                           ? getBusinessColor(task.project.business)
-                          : '#6366f1'
+                          : "#6366f1",
                       }}
                     />
                     <div className="min-w-0">
@@ -299,11 +263,11 @@ export function DashboardPage() {
                   </div>
                   <span
                     className={`text-xs px-2 py-1 rounded-full flex-shrink-0 ml-2 ${
-                      task.priority === 'urgent'
-                        ? 'bg-red-500/20 text-red-400'
-                        : task.priority === 'high'
-                        ? 'bg-amber-500/20 text-amber-400'
-                        : 'bg-gray-500/20 text-gray-400'
+                      task.priority === "urgent"
+                        ? "bg-red-500/20 text-red-400"
+                        : task.priority === "high"
+                          ? "bg-amber-500/20 text-amber-400"
+                          : "bg-gray-500/20 text-gray-400"
                     }`}
                   >
                     {task.priority}
@@ -318,7 +282,7 @@ export function DashboardPage() {
         <div className="glass rounded-xl">
           <div className="px-6 py-4 border-b border-[#2a2a4a] flex items-center justify-between">
             <h2 className="font-semibold text-white">Recent Leads</h2>
-            <Link to="/leads" className="text-sm text-indigo-400 hover:text-indigo-300">
+            <Link to="/synergy/leads" className="text-sm text-indigo-400 hover:text-indigo-300">
               View all →
             </Link>
           </div>
@@ -335,23 +299,19 @@ export function DashboardPage() {
                 >
                   <div className="min-w-0">
                     <p className="font-medium text-white truncate">{lead.name}</p>
-                    <p className="text-sm text-gray-500">{lead.source}</p>
+                    <p className="text-sm text-gray-500">{lead.source ?? lead.company}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                     <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: getBusinessColor(lead.business) }}
-                    />
-                    <span
                       className={`text-xs px-2 py-1 rounded-full ${
-                        lead.status === 'won'
-                          ? 'bg-green-500/20 text-green-400'
-                          : lead.status === 'lost'
-                          ? 'bg-red-500/20 text-red-400'
-                          : 'bg-blue-500/20 text-blue-400'
+                        lead.stage === "won"
+                          ? "bg-green-500/20 text-green-400"
+                          : lead.stage === "lost"
+                            ? "bg-red-500/20 text-red-400"
+                            : "bg-blue-500/20 text-blue-400"
                       }`}
                     >
-                      {lead.status.replace('_', ' ')}
+                      {lead.stage.replace("_", " ")}
                     </span>
                   </div>
                 </div>
@@ -369,13 +329,12 @@ export function DashboardPage() {
         </div>
         <div className="p-6">
           {stats.upcomingEvents === 0 ? (
-            <p className="text-center text-gray-500">
-              No upcoming events scheduled
-            </p>
+            <p className="text-center text-gray-500">No upcoming events scheduled</p>
           ) : (
             <p className="text-gray-300">
-              You have <span className="text-indigo-400 font-medium">{stats.upcomingEvents}</span> upcoming event
-              {stats.upcomingEvents !== 1 ? 's' : ''} this week
+              You have <span className="text-indigo-400 font-medium">{stats.upcomingEvents}</span>{" "}
+              upcoming event
+              {stats.upcomingEvents !== 1 ? "s" : ""} this week
             </p>
           )}
         </div>

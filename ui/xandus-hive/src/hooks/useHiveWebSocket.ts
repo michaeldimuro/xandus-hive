@@ -5,7 +5,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as oc from "@/lib/openclaw-ws";
-import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { useAgentStore } from "@/modules/hive/stores/agentStore";
 import { useSkillStore } from "@/modules/hive/stores/skillStore";
 import { useTriggerStore } from "@/modules/hive/stores/triggerStore";
@@ -483,33 +482,11 @@ export function useHiveWebSocket() {
       }
     });
 
-    // Connect with auth token when Supabase is configured
-    const connectWithAuth = async () => {
-      if (supabaseConfigured) {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        oc.connect(session?.access_token || undefined);
-      } else {
-        oc.connect();
-      }
-    };
-
-    void connectWithAuth();
-
-    // Reconnect with fresh token only on token refresh
-    let unsubAuth: (() => void) | null = null;
-    if (supabaseConfigured) {
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === "TOKEN_REFRESHED") {
-          oc.disconnect();
-          oc.connect(session?.access_token || undefined);
-        }
-      });
-      unsubAuth = () => subscription.unsubscribe();
-    }
+    // Connect with gateway token for WS auth.
+    // The gateway validates its own token (OPENCLAW_GATEWAY_TOKEN), not the
+    // Supabase JWT. Supabase auth is used separately for direct DB queries.
+    const gatewayToken = import.meta.env.VITE_GATEWAY_TOKEN as string | undefined;
+    oc.connect({ token: gatewayToken });
 
     if (!initialized) {
       initialized = true;
@@ -519,7 +496,6 @@ export function useHiveWebSocket() {
     cleanupRef.current = () => {
       unsubEvents();
       unsubStatus();
-      unsubAuth?.();
     };
 
     return () => {

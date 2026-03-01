@@ -1,4 +1,3 @@
-import React, { useState, useEffect, useMemo } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -10,43 +9,44 @@ import {
   DragStartEvent,
   DragEndEvent,
   DragOverEvent,
-} from '@dnd-kit/core';
+} from "@dnd-kit/core";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { Plus, Filter, CheckCircle2, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { KanbanColumn } from './KanbanColumn';
-import { TaskCard } from './TaskCard';
-import { TaskModal } from './TaskModal';
-import { useBusiness } from '@/contexts/BusinessContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
-import type { Task, Project, Business, TaskFilters } from '@/types';
-import { ASSIGNEES } from '@/types';
+} from "@dnd-kit/sortable";
+import { Plus, Filter, CheckCircle2, X } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { supabase } from "@/lib/supabase";
+import type { Task, Project, Business, TaskFilters } from "@/types";
+import { ASSIGNEES } from "@/types";
+import { KanbanColumn } from "./KanbanColumn";
+import { TaskCard } from "./TaskCard";
+import { TaskModal } from "./TaskModal";
 
 interface Column {
   id: string;
   title: string;
-  status: Task['status'];
+  status: Task["status"];
   color: string;
 }
 
 // No "Done" column - replaced with "View Done Tasks" link
 const defaultColumns: Column[] = [
-  { id: 'backlog', title: 'Backlog', status: 'backlog', color: '#71717a' },
-  { id: 'todo', title: 'To Do', status: 'todo', color: '#3b82f6' },
-  { id: 'in_progress', title: 'In Progress', status: 'in_progress', color: '#f59e0b' },
-  { id: 'blocked', title: 'Blocked', status: 'blocked', color: '#ef4444' },
-  { id: 'review', title: 'Review', status: 'review', color: '#8b5cf6' },
+  { id: "backlog", title: "Backlog", status: "backlog", color: "#71717a" },
+  { id: "todo", title: "To Do", status: "todo", color: "#3b82f6" },
+  { id: "in_progress", title: "In Progress", status: "in_progress", color: "#f59e0b" },
+  { id: "blocked", title: "Blocked", status: "blocked", color: "#ef4444" },
+  { id: "review", title: "Review", status: "review", color: "#8b5cf6" },
 ];
 
 // Status transition modal for blocked_reason and review_outcome
 interface StatusTransition {
   taskId: string;
-  newStatus: Task['status'];
+  newStatus: Task["status"];
   taskTitle: string;
 }
 
@@ -60,7 +60,7 @@ export function KanbanBoard() {
   const { businesses } = useBusiness();
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [_selectedProject, _setSelectedProject] = useState<string | 'all'>('all');
+  const [_selectedProject, _setSelectedProject] = useState<string>("all");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -68,17 +68,17 @@ export function KanbanBoard() {
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<TaskFilters>({
-    business: 'all',
-    priority: 'all',
-    assignee: 'all',
-    search: '',
+    business: "all",
+    priority: "all",
+    assignee: "all",
+    search: "",
   });
   // Status transition state for prompting blocked_reason / review_outcome
   const [statusTransition, setStatusTransition] = useState<StatusTransition | null>(null);
-  const [transitionInput, setTransitionInput] = useState('');
+  const [transitionInput, setTransitionInput] = useState("");
   // Rejection state for review tasks
   const [rejectionState, setRejectionState] = useState<RejectionState | null>(null);
-  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionReason, setRejectionReason] = useState("");
   // Mobile detection
   const [isMobile, setIsMobile] = useState(false);
 
@@ -87,11 +87,11 @@ export function KanbanBoard() {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const sensors = useSensors(
@@ -100,58 +100,42 @@ export function KanbanBoard() {
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   useEffect(() => {
-    console.log('[Kanban] useEffect triggered:', {
-      user: user ? `${user.full_name} (${user.id})` : 'null'
-    });
-    
     if (user) {
-      console.log('[Kanban] ✓ User authenticated, fetching projects and tasks...');
-      fetchProjects();
-      fetchAllTasks();
-    } else {
-      console.log('[Kanban] No user yet, waiting...');
+      void fetchProjects();
+      void fetchAllTasks();
     }
   }, [user]);
 
   const fetchProjects = async () => {
     // Fetch all projects across all businesses
     const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('user_id', user?.id)
-      .eq('status', 'active')
-      .order('name');
+      .from("projects")
+      .select("*")
+      .eq("status", "active")
+      .order("name");
 
     if (error) {
-      console.error('Error fetching projects:', error);
+      console.error("Error fetching projects:", error);
     } else {
       setProjects(data || []);
     }
   };
 
   const fetchAllTasks = async () => {
-    console.log('[Kanban] fetchAllTasks called, user.id:', user?.id);
     setLoading(true);
-    
-    // Fetch all tasks with project info (for business association)
     const { data, error } = await supabase
-      .from('tasks')
-      .select('*, project:projects(*)')
-      .eq('user_id', user?.id)
-      .neq('status', 'done') // Exclude done tasks from main board
-      .order('order', { ascending: true });
+      .from("tasks")
+      .select("*, project:projects(*)")
+      .neq("status", "done")
+      .order("order", { ascending: true });
 
     if (error) {
-      console.error('[Kanban] Error fetching tasks:', error);
+      console.error("Error fetching tasks:", error);
     } else {
-      console.log('[Kanban] Tasks fetched:', data?.length || 0);
-      if (data && data.length > 0) {
-        console.log('[Kanban] Sample task:', data[0].title, '(status:', data[0].status, ')');
-      }
       setTasks(data || []);
     }
     setLoading(false);
@@ -159,17 +143,17 @@ export function KanbanBoard() {
 
   // Filter tasks based on current filters
   const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
+    return tasks.filter((task) => {
       // Business filter
-      if (filters.business !== 'all' && task.project?.business !== filters.business) {
+      if (filters.business !== "all" && task.project?.business !== filters.business) {
         return false;
       }
       // Priority filter
-      if (filters.priority !== 'all' && task.priority !== filters.priority) {
+      if (filters.priority !== "all" && task.priority !== filters.priority) {
         return false;
       }
       // Assignee filter
-      if (filters.assignee !== 'all' && task.assignee_id !== filters.assignee) {
+      if (filters.assignee !== "all" && task.assignee_id !== filters.assignee) {
         return false;
       }
       // Search filter
@@ -180,7 +164,7 @@ export function KanbanBoard() {
     });
   }, [tasks, filters]);
 
-  const getTasksByStatus = (status: Task['status']) => {
+  const getTasksByStatus = (status: Task["status"]) => {
     return filteredTasks.filter((task) => task.status === status);
   };
 
@@ -194,17 +178,19 @@ export function KanbanBoard() {
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) {return;}
+    if (!over) {
+      return;
+    }
 
     const activeTask = tasks.find((t) => t.id === active.id);
-    if (!activeTask) {return;}
+    if (!activeTask) {
+      return;
+    }
 
     const overColumn = defaultColumns.find((col) => col.id === over.id);
     if (overColumn && activeTask.status !== overColumn.status) {
       setTasks((prev) =>
-        prev.map((task) =>
-          task.id === active.id ? { ...task, status: overColumn.status } : task
-        )
+        prev.map((task) => (task.id === active.id ? { ...task, status: overColumn.status } : task)),
       );
     }
   };
@@ -213,10 +199,14 @@ export function KanbanBoard() {
     const { active, over } = event;
     setActiveTask(null);
 
-    if (!over) {return;}
+    if (!over) {
+      return;
+    }
 
     const activeTask = tasks.find((t) => t.id === active.id);
-    if (!activeTask) {return;}
+    if (!activeTask) {
+      return;
+    }
 
     let newStatus = activeTask.status;
     const overColumn = defaultColumns.find((col) => col.id === over.id);
@@ -230,159 +220,165 @@ export function KanbanBoard() {
     }
 
     // If moving to blocked or review, prompt for reason/outcome
-    if (newStatus === 'blocked' || newStatus === 'review') {
+    if (newStatus === "blocked" || newStatus === "review") {
       setStatusTransition({
         taskId: active.id as string,
         newStatus,
         taskTitle: activeTask.title,
       });
-      setTransitionInput('');
+      setTransitionInput("");
       // Revert the optimistic update until confirmed
-      fetchAllTasks();
+      void fetchAllTasks();
       return;
     }
 
     const { error } = await supabase
-      .from('tasks')
+      .from("tasks")
       .update({ status: newStatus })
-      .eq('id', active.id);
+      .eq("id", active.id);
 
     if (error) {
-      console.error('Error updating task:', error);
-      fetchAllTasks();
+      console.error("Error updating task:", error);
+      void fetchAllTasks();
     }
   };
 
   // Handle confirming status transition with reason/outcome
   const handleConfirmTransition = async () => {
-    if (!statusTransition || !transitionInput.trim()) {return;}
+    if (!statusTransition || !transitionInput.trim()) {
+      return;
+    }
 
     const updateData: Partial<Task> = {
       status: statusTransition.newStatus,
     };
 
-    if (statusTransition.newStatus === 'blocked') {
+    if (statusTransition.newStatus === "blocked") {
       updateData.blocked_reason = transitionInput.trim();
-    } else if (statusTransition.newStatus === 'review') {
+    } else if (statusTransition.newStatus === "review") {
       updateData.review_outcome = transitionInput.trim();
     }
 
     const { error } = await supabase
-      .from('tasks')
+      .from("tasks")
       .update(updateData)
-      .eq('id', statusTransition.taskId);
+      .eq("id", statusTransition.taskId);
 
     if (error) {
-      console.error('Error updating task:', error);
+      console.error("Error updating task:", error);
     }
 
     setStatusTransition(null);
-    setTransitionInput('');
-    fetchAllTasks();
+    setTransitionInput("");
+    void fetchAllTasks();
   };
 
   const handleCancelTransition = () => {
     setStatusTransition(null);
-    setTransitionInput('');
+    setTransitionInput("");
   };
 
   // Handle marking a review task as done
   const handleMarkDone = async (taskId: string) => {
     setIsModalOpen(false); // Close the task modal
-    const { error } = await supabase
-      .from('tasks')
-      .update({ status: 'done' })
-      .eq('id', taskId);
+    const { error } = await supabase.from("tasks").update({ status: "done" }).eq("id", taskId);
 
     if (error) {
-      console.error('Error marking task as done:', error);
+      console.error("Error marking task as done:", error);
     }
-    fetchAllTasks();
+    void fetchAllTasks();
   };
 
   // Handle opening rejection modal for a review task
   const handleRejectTask = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasks.find((t) => t.id === taskId);
     if (task) {
       setIsModalOpen(false); // Close the task modal
       setRejectionState({ taskId, taskTitle: task.title });
-      setRejectionReason('');
+      setRejectionReason("");
     }
   };
 
   // Handle confirming rejection with reason
   const handleConfirmRejection = async () => {
-    if (!rejectionState || !rejectionReason.trim()) {return;}
+    if (!rejectionState || !rejectionReason.trim()) {
+      return;
+    }
 
     const { error } = await supabase
-      .from('tasks')
+      .from("tasks")
       .update({
-        status: 'in_progress',
+        status: "in_progress",
         rejection_reason: rejectionReason.trim(),
       })
-      .eq('id', rejectionState.taskId);
+      .eq("id", rejectionState.taskId);
 
     if (error) {
-      console.error('Error rejecting task:', error);
+      console.error("Error rejecting task:", error);
     }
 
     setRejectionState(null);
-    setRejectionReason('');
-    fetchAllTasks();
+    setRejectionReason("");
+    void fetchAllTasks();
   };
 
   const handleCancelRejection = () => {
     setRejectionState(null);
-    setRejectionReason('');
+    setRejectionReason("");
   };
 
   // Handle mobile status change
-  const handleMobileStatusChange = async (taskId: string, newStatus: Task['status']) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) {return;}
+  const handleMobileStatusChange = async (taskId: string, newStatus: Task["status"]) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) {
+      return;
+    }
 
     // If moving to blocked or review, prompt for reason/outcome
-    if (newStatus === 'blocked' || newStatus === 'review') {
+    if (newStatus === "blocked" || newStatus === "review") {
       setStatusTransition({
         taskId,
         newStatus,
         taskTitle: task.title,
       });
-      setTransitionInput('');
+      setTransitionInput("");
       return;
     }
 
     // Otherwise, update directly
-    const { error } = await supabase
-      .from('tasks')
-      .update({ status: newStatus })
-      .eq('id', taskId);
+    const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId);
 
     if (error) {
-      console.error('Error updating task:', error);
+      console.error("Error updating task:", error);
     }
-    
-    fetchAllTasks();
+
+    void fetchAllTasks();
   };
 
   const handleCreateProject = async () => {
-    const name = prompt('Enter project name:');
-    if (!name) {return;}
-
-    const businessChoice = prompt('Business (capture_health, inspectable, synergy):');
-    if (!businessChoice || !['capture_health', 'inspectable', 'synergy'].includes(businessChoice)) {
-      alert('Invalid business');
+    const name = prompt("Enter project name:");
+    if (!name) {
       return;
     }
 
-    const { data, error } = await supabase.from('projects').insert({
-      name,
-      business: businessChoice as Business,
-      user_id: user?.id,
-    }).select().single();
+    const businessChoice = prompt("Business (capture_health, inspectable, synergy):");
+    if (!businessChoice || !["capture_health", "inspectable", "synergy"].includes(businessChoice)) {
+      alert("Invalid business");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("projects")
+      .insert({
+        name,
+        business: businessChoice as Business,
+        user_id: user?.id,
+      })
+      .select()
+      .single();
 
     if (error) {
-      console.error('Error creating project:', error);
+      console.error("Error creating project:", error);
     } else if (data) {
       setProjects([...projects, data]);
     }
@@ -400,49 +396,48 @@ export function KanbanBoard() {
 
   const handleSaveTask = async (taskData: Partial<Task>) => {
     if (editingTask) {
-      const { error } = await supabase
-        .from('tasks')
-        .update(taskData)
-        .eq('id', editingTask.id);
+      const { error } = await supabase.from("tasks").update(taskData).eq("id", editingTask.id);
 
       if (error) {
-        console.error('Error updating task:', error);
+        console.error("Error updating task:", error);
       } else {
-        fetchAllTasks();
+        void fetchAllTasks();
       }
     } else {
       // For new tasks, we need a project_id
       if (!taskData.project_id) {
-        alert('Please select a project');
+        alert("Please select a project");
         return;
       }
-      
-      const { error } = await supabase.from('tasks').insert({
+
+      const { error } = await supabase.from("tasks").insert({
         ...taskData,
         user_id: user?.id,
-        status: 'backlog',
+        status: "backlog",
       });
 
       if (error) {
-        console.error('Error creating task:', error);
+        console.error("Error creating task:", error);
       } else {
-        fetchAllTasks();
+        void fetchAllTasks();
       }
     }
     setIsModalOpen(false);
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
     if (error) {
-      console.error('Error deleting task:', error);
+      console.error("Error deleting task:", error);
     } else {
-      fetchAllTasks();
+      void fetchAllTasks();
     }
     setIsModalOpen(false);
   };
 
-  const activeFiltersCount = Object.values(filters).filter(v => v && v !== 'all' && v !== '').length;
+  const activeFiltersCount = Object.values(filters).filter(
+    (v) => v && v !== "all" && v !== "",
+  ).length;
 
   if (loading) {
     return (
@@ -467,8 +462,8 @@ export function KanbanBoard() {
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
               showFilters || activeFiltersCount > 0
-                ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-400'
-                : 'bg-[#1a1a3a] border-[#2a2a4a] text-gray-400 hover:text-white hover:border-[#3a3a5a]'
+                ? "bg-indigo-600/20 border-indigo-500/50 text-indigo-400"
+                : "bg-[#1a1a3a] border-[#2a2a4a] text-gray-400 hover:text-white hover:border-[#3a3a5a]"
             }`}
           >
             <Filter size={18} />
@@ -482,7 +477,7 @@ export function KanbanBoard() {
 
           {/* View Done Tasks link */}
           <Link
-            to="/kanban/done"
+            to="/workspace/kanban/done"
             className="flex items-center gap-2 px-4 py-2 bg-[#1a1a3a] border border-[#2a2a4a] text-gray-400 hover:text-green-400 hover:border-green-500/50 rounded-lg transition"
           >
             <CheckCircle2 size={18} />
@@ -505,7 +500,9 @@ export function KanbanBoard() {
           <div className="flex items-center justify-between">
             <h3 className="text-white font-medium">Filters</h3>
             <button
-              onClick={() => setFilters({ business: 'all', priority: 'all', assignee: 'all', search: '' })}
+              onClick={() =>
+                setFilters({ business: "all", priority: "all", assignee: "all", search: "" })
+              }
               className="text-sm text-gray-400 hover:text-white transition"
             >
               Clear all
@@ -517,7 +514,7 @@ export function KanbanBoard() {
               <label className="block text-sm text-gray-400 mb-1">Search</label>
               <input
                 type="text"
-                value={filters.search || ''}
+                value={filters.search || ""}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                 placeholder="Search tasks..."
                 className="w-full px-3 py-2 bg-[#12122a] border border-[#2a2a4a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -528,13 +525,17 @@ export function KanbanBoard() {
             <div>
               <label className="block text-sm text-gray-400 mb-1">Business</label>
               <select
-                value={filters.business || 'all'}
-                onChange={(e) => setFilters({ ...filters, business: e.target.value as Business | 'all' })}
+                value={filters.business || "all"}
+                onChange={(e) =>
+                  setFilters({ ...filters, business: e.target.value as Business | "all" })
+                }
                 className="w-full px-3 py-2 bg-[#12122a] border border-[#2a2a4a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="all">All Businesses</option>
-                {businesses.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -543,8 +544,10 @@ export function KanbanBoard() {
             <div>
               <label className="block text-sm text-gray-400 mb-1">Priority</label>
               <select
-                value={filters.priority || 'all'}
-                onChange={(e) => setFilters({ ...filters, priority: e.target.value as Task['priority'] | 'all' })}
+                value={filters.priority || "all"}
+                onChange={(e) =>
+                  setFilters({ ...filters, priority: e.target.value as Task["priority"] | "all" })
+                }
                 className="w-full px-3 py-2 bg-[#12122a] border border-[#2a2a4a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="all">All Priorities</option>
@@ -559,13 +562,15 @@ export function KanbanBoard() {
             <div>
               <label className="block text-sm text-gray-400 mb-1">Assignee</label>
               <select
-                value={filters.assignee || 'all'}
+                value={filters.assignee || "all"}
                 onChange={(e) => setFilters({ ...filters, assignee: e.target.value })}
                 className="w-full px-3 py-2 bg-[#12122a] border border-[#2a2a4a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="all">All Assignees</option>
-                {ASSIGNEES.map(a => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
+                {ASSIGNEES.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -588,34 +593,34 @@ export function KanbanBoard() {
       ) : isMobile ? (
         // Mobile view without drag-and-drop
         <div className="flex gap-4 overflow-x-auto pb-4">
-            {defaultColumns.map((column) => {
-              const columnTasks = getTasksByStatus(column.status);
-              return (
-                <KanbanColumn
-                  key={column.id}
-                  id={column.id}
-                  title={column.title}
-                  color={column.color}
-                  count={columnTasks.length}
+          {defaultColumns.map((column) => {
+            const columnTasks = getTasksByStatus(column.status);
+            return (
+              <KanbanColumn
+                key={column.id}
+                id={column.id}
+                title={column.title}
+                color={column.color}
+                count={columnTasks.length}
+              >
+                <SortableContext
+                  items={columnTasks.map((t) => t.id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <SortableContext
-                    items={columnTasks.map((t) => t.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {columnTasks.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        onClick={() => handleTaskClick(task)}
-                        onStatusChange={handleMobileStatusChange}
-                        isMobile={isMobile}
-                      />
-                    ))}
-                  </SortableContext>
-                </KanbanColumn>
-              );
-            })}
-          </div>
+                  {columnTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onClick={() => handleTaskClick(task)}
+                      onStatusChange={handleMobileStatusChange}
+                      isMobile={isMobile}
+                    />
+                  ))}
+                </SortableContext>
+              </KanbanColumn>
+            );
+          })}
+        </div>
       ) : (
         // Desktop view with drag-and-drop
         <DndContext
@@ -667,8 +672,8 @@ export function KanbanBoard() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveTask}
         onDelete={editingTask ? () => handleDeleteTask(editingTask.id) : undefined}
-        onMarkDone={editingTask?.status === 'review' ? handleMarkDone : undefined}
-        onReject={editingTask?.status === 'review' ? handleRejectTask : undefined}
+        onMarkDone={editingTask?.status === "review" ? handleMarkDone : undefined}
+        onReject={editingTask?.status === "review" ? handleRejectTask : undefined}
         task={editingTask}
         projects={projects}
       />
@@ -676,11 +681,16 @@ export function KanbanBoard() {
       {/* Status Transition Modal - for blocked_reason / review_outcome */}
       {statusTransition && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleCancelTransition} />
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={handleCancelTransition}
+          />
           <div className="relative bg-[#12122a] border border-[#2a2a4a] rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white">
-                {statusTransition.newStatus === 'blocked' ? '🚫 Moving to Blocked' : '👀 Moving to Review'}
+                {statusTransition.newStatus === "blocked"
+                  ? "🚫 Moving to Blocked"
+                  : "👀 Moving to Review"}
               </h2>
               <button
                 onClick={handleCancelTransition}
@@ -689,24 +699,26 @@ export function KanbanBoard() {
                 <X size={20} />
               </button>
             </div>
-            
+
             <p className="text-gray-400 text-sm mb-4">
               Task: <span className="text-white">{statusTransition.taskTitle}</span>
             </p>
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                {statusTransition.newStatus === 'blocked' 
-                  ? 'What is blocking this task? *'
-                  : 'What is the outcome/deliverable? *'}
+                {statusTransition.newStatus === "blocked"
+                  ? "What is blocking this task? *"
+                  : "What is the outcome/deliverable? *"}
               </label>
               <textarea
                 value={transitionInput}
                 onChange={(e) => setTransitionInput(e.target.value)}
                 rows={3}
-                placeholder={statusTransition.newStatus === 'blocked' 
-                  ? 'e.g., Waiting for API access, blocked by dependency...'
-                  : 'e.g., PR link, research doc URL, marketing material...'}
+                placeholder={
+                  statusTransition.newStatus === "blocked"
+                    ? "e.g., Waiting for API access, blocked by dependency..."
+                    : "e.g., PR link, research doc URL, marketing material..."
+                }
                 className="w-full px-4 py-2 bg-[#1a1a3a] border border-[#2a2a4a] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 autoFocus
               />
@@ -723,12 +735,12 @@ export function KanbanBoard() {
                 onClick={handleConfirmTransition}
                 disabled={!transitionInput.trim()}
                 className={`px-4 py-2 text-white rounded-lg transition ${
-                  statusTransition.newStatus === 'blocked'
-                    ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-600/50'
-                    : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50'
+                  statusTransition.newStatus === "blocked"
+                    ? "bg-red-600 hover:bg-red-700 disabled:bg-red-600/50"
+                    : "bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50"
                 } disabled:cursor-not-allowed`}
               >
-                {statusTransition.newStatus === 'blocked' ? 'Mark as Blocked' : 'Submit for Review'}
+                {statusTransition.newStatus === "blocked" ? "Mark as Blocked" : "Submit for Review"}
               </button>
             </div>
           </div>
@@ -738,12 +750,13 @@ export function KanbanBoard() {
       {/* Rejection Modal - for rejecting review tasks */}
       {rejectionState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleCancelRejection} />
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={handleCancelRejection}
+          />
           <div className="relative bg-[#12122a] border border-[#2a2a4a] rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">
-                ↩️ Reject Task
-              </h2>
+              <h2 className="text-lg font-semibold text-white">↩️ Reject Task</h2>
               <button
                 onClick={handleCancelRejection}
                 className="p-2 hover:bg-[#1a1a3a] rounded-lg transition text-gray-400 hover:text-white"
@@ -751,7 +764,7 @@ export function KanbanBoard() {
                 <X size={20} />
               </button>
             </div>
-            
+
             <p className="text-gray-400 text-sm mb-4">
               Task: <span className="text-white">{rejectionState.taskTitle}</span>
             </p>

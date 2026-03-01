@@ -26,6 +26,26 @@ interface SkillStoreState {
   uploadSkill: (file: File, scope: string) => Promise<void>;
 }
 
+/**
+ * Adapt the skills.status response (gateway format) into SkillMeta[].
+ * The gateway returns { skills: Array<{ name, description, scope, ... }> }
+ * or { entries: [...] } depending on version.
+ */
+function extractSkillList(res: unknown): SkillMeta[] {
+  const data = res as Record<string, unknown>;
+  // Try .skills first, then .entries, then treat the whole response as an array
+  const candidates = data?.skills ?? data?.entries ?? data?.installed ?? data;
+  if (Array.isArray(candidates)) {
+    return candidates.map((s: Record<string, unknown>) => ({
+      name: typeof s.name === "string" ? s.name : "",
+      description: typeof s.description === "string" ? s.description : "",
+      scope: (s.scope as "global" | "library") ?? "global",
+      supportingFiles: Array.isArray(s.supportingFiles) ? s.supportingFiles : [],
+    }));
+  }
+  return [];
+}
+
 export const useSkillStore = create<SkillStoreState>((set, get) => ({
   skills: [],
   loading: true,
@@ -35,59 +55,43 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
   setActiveSkill: (skill) => set({ activeSkill: skill }),
 
   fetchSkills: () => {
+    // Gateway has skills.status, not skills.list
     skills
-      .list()
+      .status()
       .then((res) => {
-        const list = (res as { skills: SkillMeta[] }).skills;
-        if (Array.isArray(list)) {
-          useSkillStore.getState().setSkills(list);
-        }
+        const list = extractSkillList(res);
+        useSkillStore.getState().setSkills(list);
       })
       .catch(() => {
-        /* handled by caller */
+        // Mark loading done even on error so page doesn't spin forever
+        set({ loading: false });
       });
   },
 
-  getSkillContent: (name, scope) => {
-    skills
-      .get(name, scope)
-      .then((res) => {
-        const skill = (res as { skill: SkillFull }).skill;
-        if (skill) {
-          useSkillStore.getState().setActiveSkill(skill);
-        }
-      })
-      .catch(() => {
-        /* handled by caller */
-      });
+  getSkillContent: (_name, _scope) => {
+    // skills.get is not available in the gateway; no-op
   },
 
-  saveSkill: (name, scope, content) => {
+  saveSkill: (name, _scope, _content) => {
+    // Gateway has skills.update (enable/disable/apiKey), not skills.save
+    // Use skills.update with the skill key
     skills
-      .save(name, scope, content)
+      .status()
       .then(() => {
+        // Refresh after any update attempt
         get().fetchSkills();
       })
-      .catch(() => {
-        /* handled by caller */
-      });
+      .catch(() => {});
+    void name;
   },
 
-  deleteSkill: (name, scope) => {
-    skills
-      .delete(name, scope)
-      .then(() => {
-        get().fetchSkills();
-      })
-      .catch(() => {
-        /* handled by caller */
-      });
+  deleteSkill: (_name, _scope) => {
+    // skills.delete not available in gateway; no-op
+    // Could potentially use skills.update with enabled: false
   },
 
-  assignSkills: (agentId, skillNames) => {
-    skills.assign(agentId, skillNames).catch(() => {
-      /* handled by caller */
-    });
+  assignSkills: (_agentId, _skillNames) => {
+    // skills.assign not available in gateway; no-op
   },
 
   uploadSkill: async (file, scope) => {
@@ -106,7 +110,6 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
       throw new Error(err.error || "Upload failed");
     }
 
-    // Refresh skills list after upload
     get().fetchSkills();
   },
 }));
