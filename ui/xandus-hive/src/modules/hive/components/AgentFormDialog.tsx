@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import type { AgentProfile } from '@xandus/shared';
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -7,21 +7,21 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { useAgentStore } from '../stores/agentStore';
-import { modelDisplayName } from '../utils/model-names';
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { useAgentStore } from "../stores/agentStore";
+import type { AgentProfile } from "../types/agent";
+import { modelDisplayName } from "../utils/model-names";
 
 interface AgentFormDialogProps {
   open: boolean;
@@ -29,19 +29,25 @@ interface AgentFormDialogProps {
   agent?: AgentProfile | null;
 }
 
-const ROLES = ['orchestrator', 'developer', 'researcher', 'assistant'] as const;
-const MODELS = ['MiniMax-M2.5', 'MiniMax-M2.5-highspeed', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'] as const;
+const ROLES = ["orchestrator", "developer", "researcher", "assistant"] as const;
+const MODELS = [
+  "MiniMax-M2.5",
+  "MiniMax-M2.5-highspeed",
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5-20251001",
+] as const;
 
 export function AgentFormDialog({ open, onOpenChange, agent }: AgentFormDialogProps) {
   const createAgent = useAgentStore((s) => s.createAgent);
   const updateAgentProfile = useAgentStore((s) => s.updateAgentProfile);
 
-  const [name, setName] = useState('');
+  const [name, setName] = useState("");
   const [role, setRole] = useState<string>(ROLES[3]);
   const [model, setModel] = useState<string>(MODELS[1]);
-  const [systemPrompt, setSystemPrompt] = useState('');
+  const [systemPrompt, setSystemPrompt] = useState("");
   const [maxContextTokens, setMaxContextTokens] = useState(200000);
-  const [status, setStatus] = useState<'active' | 'disabled'>('active');
+  const [status, setStatus] = useState<"active" | "disabled">("active");
 
   const isEdit = !!agent;
 
@@ -50,16 +56,16 @@ export function AgentFormDialog({ open, onOpenChange, agent }: AgentFormDialogPr
       setName(agent.name);
       setRole(agent.role);
       setModel(agent.model_preference);
-      setSystemPrompt(agent.system_prompt || '');
+      setSystemPrompt(agent.system_prompt || "");
       setMaxContextTokens(agent.max_context_tokens);
       setStatus(agent.status);
     } else {
-      setName('');
+      setName("");
       setRole(ROLES[3]);
       setModel(MODELS[1]);
-      setSystemPrompt('');
+      setSystemPrompt("");
       setMaxContextTokens(200000);
-      setStatus('active');
+      setStatus("active");
     }
   }, [agent, open]);
 
@@ -86,9 +92,9 @@ export function AgentFormDialog({ open, onOpenChange, agent }: AgentFormDialogPr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Agent' : 'Create Agent'}</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Agent" : "Create Agent"}</DialogTitle>
           <DialogDescription>
-            {isEdit ? 'Update the agent profile configuration.' : 'Configure a new agent profile.'}
+            {isEdit ? "Update the agent profile configuration." : "Configure a new agent profile."}
           </DialogDescription>
         </DialogHeader>
 
@@ -163,12 +169,10 @@ export function AgentFormDialog({ open, onOpenChange, agent }: AgentFormDialogPr
             <div className="flex items-center gap-3">
               <Switch
                 id="agent-status"
-                checked={status === 'active'}
-                onCheckedChange={(checked) => setStatus(checked ? 'active' : 'disabled')}
+                checked={status === "active"}
+                onCheckedChange={(checked) => setStatus(checked ? "active" : "disabled")}
               />
-              <Label htmlFor="agent-status">
-                {status === 'active' ? 'Active' : 'Disabled'}
-              </Label>
+              <Label htmlFor="agent-status">{status === "active" ? "Active" : "Disabled"}</Label>
             </div>
           )}
 
@@ -177,7 +181,7 @@ export function AgentFormDialog({ open, onOpenChange, agent }: AgentFormDialogPr
               Cancel
             </Button>
             <Button type="submit" disabled={!name.trim()}>
-              {isEdit ? 'Save Changes' : 'Create Agent'}
+              {isEdit ? "Save Changes" : "Create Agent"}
             </Button>
           </DialogFooter>
         </form>

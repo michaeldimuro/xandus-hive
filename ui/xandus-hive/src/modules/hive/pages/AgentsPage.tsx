@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import type { AgentProfile } from '@xandus/shared';
-import { useAgentStore } from '../stores/agentStore';
-import { AgentCard } from '../components/AgentCard';
-import { AgentFormDialog } from '../components/AgentFormDialog';
-import { Button } from '@/components/ui/button';
-import { Plus, Bot } from 'lucide-react';
+import { Plus, Bot } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { AgentCard } from "../components/AgentCard";
+import { AgentFormDialog } from "../components/AgentFormDialog";
+import { useAgentStore } from "../stores/agentStore";
+import type { AgentProfile } from "../types/agent";
 
 export default function AgentsPage() {
   const agents = useAgentStore((s) => s.agents);
@@ -64,11 +64,7 @@ export default function AgentsPage() {
         </div>
       )}
 
-      <AgentFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        agent={editingAgent}
-      />
+      <AgentFormDialog open={dialogOpen} onOpenChange={setDialogOpen} agent={editingAgent} />
     </div>
   );
 }

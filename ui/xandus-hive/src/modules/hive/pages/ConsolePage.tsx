@@ -24,7 +24,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAgentConsole, type ConsoleLine } from "@/hooks/useAgentConsole";
-import * as ws from "@/lib/openclaw-ws";
+import { chat } from "@/lib/openclaw-ws";
 import { useOperationsStore } from "@/stores/operationsStore";
 
 const LINE_COLORS: Record<string, string> = {
@@ -190,7 +190,7 @@ export default function ConsolePage() {
     if (!trimmed || !panels[0]?.groupFolder) {
       return;
     }
-    void ws.request("agent.send_message", { groupFolder: panels[0].groupFolder, message: trimmed });
+    void chat.send(trimmed, panels[0].groupFolder);
     setMessage("");
     inputRef.current?.focus();
   }, [message, panels]);

@@ -1,120 +1,80 @@
-import { useEffect, useState } from 'react';
-import type { Trigger, TriggerType } from '@xandus/shared';
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import { useTriggerStore } from '../stores/triggerStore';
-import { useAgentStore } from '../stores/agentStore';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useAgentStore } from "../stores/agentStore";
+import { useTriggerStore } from "../stores/triggerStore";
+import type { CronJob, CronJobCreate } from "../types/cron";
 
 interface TriggerFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  trigger?: Trigger | null;
+  trigger?: CronJob | null;
 }
-
-const TRIGGER_TYPES: TriggerType[] = ['cron', 'webhook', 'telegram', 'manual'];
 
 export function TriggerFormDialog({ open, onOpenChange, trigger }: TriggerFormDialogProps) {
   const createTrigger = useTriggerStore((s) => s.createTrigger);
   const updateTriggerData = useTriggerStore((s) => s.updateTriggerData);
   const agents = useAgentStore((s) => s.agents);
 
-  const [name, setName] = useState('');
-  const [type, setType] = useState<TriggerType>('cron');
-  const [agentId, setAgentId] = useState<string>('');
-  const [groupFolder, setGroupFolder] = useState('main');
-  const [chatJid, setChatJid] = useState('');
-  const [promptTemplate, setPromptTemplate] = useState('');
-  const [contextMode, setContextMode] = useState<'isolated' | 'group'>('isolated');
-
-  // Type-specific config
-  const [cronExpression, setCronExpression] = useState('');
-  const [cronTimezone, setCronTimezone] = useState('');
-  const [webhookPath, setWebhookPath] = useState('');
-  const [webhookSecret, setWebhookSecret] = useState('');
-  const [webhookMethod, setWebhookMethod] = useState('');
-  const [telegramGroupJid, setTelegramGroupJid] = useState('');
-  const [telegramPattern, setTelegramPattern] = useState('');
+  const [name, setName] = useState("");
+  const [schedule, setSchedule] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [session, setSession] = useState("main");
+  const [agentId, setAgentId] = useState<string>("");
+  const [enabled, setEnabled] = useState(true);
 
   const isEdit = !!trigger;
 
   useEffect(() => {
     if (trigger) {
       setName(trigger.name);
-      setType(trigger.type);
-      setAgentId(trigger.agent_id || '');
-      setGroupFolder(trigger.group_folder);
-      setChatJid(trigger.chat_jid);
-      setPromptTemplate(trigger.prompt_template);
-      setContextMode(trigger.context_mode);
-      const config = trigger.config as Record<string, unknown>;
-      if (trigger.type === 'cron') {
-        setCronExpression((config.expression as string) || '');
-        setCronTimezone((config.timezone as string) || '');
-      } else if (trigger.type === 'webhook') {
-        setWebhookPath((config.path as string) || '');
-        setWebhookSecret((config.secret as string) || '');
-        setWebhookMethod((config.method as string) || '');
-      } else if (trigger.type === 'telegram') {
-        setTelegramGroupJid((config.group_jid as string) || '');
-        setTelegramPattern((config.pattern as string) || '');
-      }
+      setSchedule(trigger.schedule);
+      setPrompt(trigger.prompt);
+      setSession(trigger.session || "main");
+      setAgentId(trigger.agentId || "");
+      setEnabled(trigger.enabled);
     } else {
-      setName('');
-      setType('cron');
-      setAgentId('');
-      setGroupFolder('main');
-      setChatJid('');
-      setPromptTemplate('');
-      setContextMode('isolated');
-      setCronExpression('');
-      setCronTimezone('');
-      setWebhookPath('');
-      setWebhookSecret('');
-      setWebhookMethod('');
-      setTelegramGroupJid('');
-      setTelegramPattern('');
+      setName("");
+      setSchedule("");
+      setPrompt("");
+      setSession("main");
+      setAgentId("");
+      setEnabled(true);
     }
   }, [trigger, open]);
 
-  const buildConfig = (): Record<string, unknown> => {
-    switch (type) {
-      case 'cron':
-        return { expression: cronExpression, ...(cronTimezone ? { timezone: cronTimezone } : {}) };
-      case 'webhook':
-        return { path: webhookPath, ...(webhookSecret ? { secret: webhookSecret } : {}), ...(webhookMethod ? { method: webhookMethod } : {}) };
-      case 'telegram':
-        return { group_jid: telegramGroupJid, pattern: telegramPattern };
-      case 'manual':
-      default:
-        return {};
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload: Record<string, unknown> = {
+    const payload: CronJobCreate = {
       name,
-      type,
-      agent_id: agentId || null,
-      group_folder: groupFolder,
-      chat_jid: chatJid,
-      prompt_template: promptTemplate,
-      config: buildConfig(),
-      context_mode: contextMode,
+      schedule,
+      prompt,
+      session,
+      agentId: agentId || undefined,
+      enabled,
     };
 
     if (isEdit) {
-      updateTriggerData(trigger.id, payload);
+      updateTriggerData(trigger.id, payload as unknown as Record<string, unknown>);
     } else {
-      createTrigger(payload);
+      createTrigger(payload as unknown as Record<string, unknown>);
     }
     onOpenChange(false);
   };
@@ -123,126 +83,93 @@ export function TriggerFormDialog({ open, onOpenChange, trigger }: TriggerFormDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Trigger' : 'Create Trigger'}</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Cron Job" : "Create Cron Job"}</DialogTitle>
           <DialogDescription>
-            {isEdit ? 'Update the trigger configuration.' : 'Configure a new trigger to wake an agent.'}
+            {isEdit
+              ? "Update the cron job configuration."
+              : "Configure a new cron job to schedule agent tasks."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="trigger-name">Name</Label>
-            <Input id="trigger-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Daily report" required />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="trigger-type">Type</Label>
-            <Select value={type} onValueChange={(v) => setType(v as TriggerType)}>
-              <SelectTrigger id="trigger-type"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TRIGGER_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="trigger-agent">Agent (optional)</Label>
-            <Select value={agentId || '__default__'} onValueChange={(v) => setAgentId(v === '__default__' ? '' : v)}>
-              <SelectTrigger id="trigger-agent"><SelectValue placeholder="Default (group agent)" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__default__">Default (group agent)</SelectItem>
-                {agents.filter((a) => a.status === 'active').map((a) => (
-                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="trigger-group">Group Folder</Label>
-              <Input id="trigger-group" value={groupFolder} onChange={(e) => setGroupFolder(e.target.value)} placeholder="main" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="trigger-jid">Chat JID</Label>
-              <Input id="trigger-jid" value={chatJid} onChange={(e) => setChatJid(e.target.value)} placeholder="chat@telegram" required />
-            </div>
-          </div>
-
-          {type === 'cron' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="cron-expr">Cron Expression</Label>
-                <Input id="cron-expr" value={cronExpression} onChange={(e) => setCronExpression(e.target.value)} placeholder="0 9 * * *" required className="font-mono text-xs" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cron-tz">Timezone</Label>
-                <Input id="cron-tz" value={cronTimezone} onChange={(e) => setCronTimezone(e.target.value)} placeholder="America/New_York" />
-              </div>
-            </div>
-          )}
-
-          {type === 'webhook' && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="wh-path">Webhook Path</Label>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">/api/hooks/</span>
-                  <Input id="wh-path" value={webhookPath} onChange={(e) => setWebhookPath(e.target.value)} placeholder="my-hook" required className="font-mono text-xs" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="wh-secret">Secret (optional)</Label>
-                  <Input id="wh-secret" value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} placeholder="hmac-secret" type="password" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wh-method">Method (optional)</Label>
-                  <Input id="wh-method" value={webhookMethod} onChange={(e) => setWebhookMethod(e.target.value)} placeholder="POST" />
-                </div>
-              </div>
-            </>
-          )}
-
-          {type === 'telegram' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="tg-jid">Group JID</Label>
-                <Input id="tg-jid" value={telegramGroupJid} onChange={(e) => setTelegramGroupJid(e.target.value)} placeholder="group@telegram" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tg-pattern">Pattern (regex)</Label>
-                <Input id="tg-pattern" value={telegramPattern} onChange={(e) => setTelegramPattern(e.target.value)} placeholder="!report.*" required className="font-mono text-xs" />
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="trigger-prompt">Prompt Template</Label>
-            <Textarea
-              id="trigger-prompt" value={promptTemplate} onChange={(e) => setPromptTemplate(e.target.value)}
-              placeholder="Enter the prompt to send to the agent..."
-              className="font-mono text-xs min-h-[100px]" required
+            <Label htmlFor="cron-name">Name</Label>
+            <Input
+              id="cron-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Daily report"
+              required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="trigger-context">Context Mode</Label>
-            <Select value={contextMode} onValueChange={(v) => setContextMode(v as 'isolated' | 'group')}>
-              <SelectTrigger id="trigger-context"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="isolated">Isolated (fresh session)</SelectItem>
-                <SelectItem value="group">Group (continue session)</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="cron-schedule">Schedule (cron expression)</Label>
+            <Input
+              id="cron-schedule"
+              value={schedule}
+              onChange={(e) => setSchedule(e.target.value)}
+              placeholder="0 9 * * *"
+              required
+              className="font-mono text-xs"
+            />
+            <p className="text-muted-foreground text-xs">
+              e.g. &quot;0 9 * * *&quot; = every day at 9:00 AM, &quot;*/15 * * * *&quot; = every 15
+              minutes
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cron-prompt">Prompt</Label>
+            <Textarea
+              id="cron-prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Enter the prompt to send to the agent..."
+              className="font-mono text-xs min-h-[100px]"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="cron-session">Session</Label>
+              <Input
+                id="cron-session"
+                value={session}
+                onChange={(e) => setSession(e.target.value)}
+                placeholder="main"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cron-agent">Agent (optional)</Label>
+              <Select
+                value={agentId || "__default__"}
+                onValueChange={(v) => setAgentId(v === "__default__" ? "" : v)}
+              >
+                <SelectTrigger id="cron-agent">
+                  <SelectValue placeholder="Default agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">Default agent</SelectItem>
+                  {agents
+                    .filter((a) => a.status === "active")
+                    .map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={!name.trim() || !promptTemplate.trim()}>
-              {isEdit ? 'Save Changes' : 'Create Trigger'}
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!name.trim() || !prompt.trim() || !schedule.trim()}>
+              {isEdit ? "Save Changes" : "Create Job"}
             </Button>
           </DialogFooter>
         </form>

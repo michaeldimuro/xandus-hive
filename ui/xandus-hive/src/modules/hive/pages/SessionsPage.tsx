@@ -8,14 +8,36 @@ import {
   Square,
   Terminal,
 } from "lucide-react";
-// @ts-nocheck
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { sessions, chat, onEvent, type SessionInfo, type ChatMessage } from "@/lib/openclaw-ws";
+import { sessions, chat, onEvent } from "@/lib/openclaw-ws";
+
+// ---------------------------------------------------------------------------
+// Local Types
+// ---------------------------------------------------------------------------
+
+interface SessionInfo {
+  sessionKey: string;
+  agentName: string;
+  status: string;
+  startedAt: string;
+  groupFolder: string;
+  containerName: string;
+  model?: string;
+  runId?: string;
+}
+
+interface ChatMessage {
+  id: string;
+  role: string;
+  content: string;
+  toolName?: string;
+  timestamp: string;
+}
 
 // ---------------------------------------------------------------------------
 // Status colour helpers
@@ -89,7 +111,7 @@ function SessionRow({ session }: { session: SessionInfo }) {
       .history(session.sessionKey)
       .then((msgs) => {
         if (mounted) {
-          setHistory(msgs);
+          setHistory(msgs as ChatMessage[]);
         }
       })
       .catch(() => {
@@ -110,9 +132,8 @@ function SessionRow({ session }: { session: SessionInfo }) {
     if (!expanded) {
       return;
     }
-    const unsub = onEvent(
-      ["agent.tool.invoked", "agent.response", "agent.container.output", "chat.message"],
-      (data) => {
+    const unsubs = [
+      onEvent("agent.tool.invoked", (data) => {
         const key =
           (data.sessionKey as string) ||
           (data.groupFolder as string) ||
@@ -120,39 +141,80 @@ function SessionRow({ session }: { session: SessionInfo }) {
         if (key !== session.sessionKey && key !== session.containerName) {
           return;
         }
-
         const ts = (data.timestamp as string) || new Date().toISOString();
-
-        if (data.type === "agent.tool.invoked") {
-          setHistory((prev) => [
-            ...prev,
-            {
-              id: `rt-${Date.now()}`,
-              role: "tool",
-              content: (data.toolInput as string) || "",
-              toolName: data.toolName as string,
-              timestamp: ts,
-            },
-          ]);
-        } else if (data.type === "agent.response") {
-          setHistory((prev) => [
-            ...prev,
-            {
-              id: `rt-${Date.now()}`,
-              role: "assistant",
-              content: (data.text as string) || "",
-              timestamp: ts,
-            },
-          ]);
-        } else if (data.type === "chat.message") {
-          const msg = data.message as Record<string, unknown>;
-          if (msg) {
-            setHistory((prev) => [...prev, msg]);
-          }
+        setHistory((prev) => [
+          ...prev,
+          {
+            id: `rt-${Date.now()}`,
+            role: "tool",
+            content: (data.toolInput as string) || "",
+            toolName: data.toolName as string,
+            timestamp: ts,
+          },
+        ]);
+      }),
+      onEvent("agent.response", (data) => {
+        const key =
+          (data.sessionKey as string) ||
+          (data.groupFolder as string) ||
+          (data.containerName as string);
+        if (key !== session.sessionKey && key !== session.containerName) {
+          return;
         }
-      },
-    );
-    return unsub;
+        const ts = (data.timestamp as string) || new Date().toISOString();
+        setHistory((prev) => [
+          ...prev,
+          {
+            id: `rt-${Date.now()}`,
+            role: "assistant",
+            content: (data.text as string) || "",
+            timestamp: ts,
+          },
+        ]);
+      }),
+      onEvent("agent.container.output", (data) => {
+        const key =
+          (data.sessionKey as string) ||
+          (data.groupFolder as string) ||
+          (data.containerName as string);
+        if (key !== session.sessionKey && key !== session.containerName) {
+          return;
+        }
+        const ts = (data.timestamp as string) || new Date().toISOString();
+        setHistory((prev) => [
+          ...prev,
+          {
+            id: `rt-${Date.now()}`,
+            role: "system",
+            content: (data.output as string) || (data.text as string) || "",
+            timestamp: ts,
+          },
+        ]);
+      }),
+      onEvent("chat.message", (data) => {
+        const key =
+          (data.sessionKey as string) ||
+          (data.groupFolder as string) ||
+          (data.containerName as string);
+        if (key !== session.sessionKey && key !== session.containerName) {
+          return;
+        }
+        const msg = data.message as Record<string, unknown> | undefined;
+        if (msg) {
+          setHistory((prev) => [
+            ...prev,
+            {
+              id: (msg.id as string) || `rt-${Date.now()}`,
+              role: (msg.role as string) || "assistant",
+              content: (msg.content as string) || "",
+              toolName: msg.toolName as string | undefined,
+              timestamp: (msg.timestamp as string) || new Date().toISOString(),
+            },
+          ]);
+        }
+      }),
+    ];
+    return () => unsubs.forEach((fn) => fn());
   }, [expanded, session.sessionKey, session.containerName]);
 
   // Auto-scroll on new messages
@@ -320,9 +382,10 @@ export default function SessionsPage() {
     let mounted = true;
     sessions
       .list()
-      .then((list) => {
+      .then((result) => {
         if (mounted) {
-          setSessionList(list);
+          const list = (result as Record<string, unknown>).sessions;
+          setSessionList((Array.isArray(list) ? list : []) as SessionInfo[]);
         }
       })
       .catch(() => {
@@ -338,49 +401,43 @@ export default function SessionsPage() {
     };
   }, []);
 
-  // Real-time session updates
+  // Real-time session updates — separate onEvent calls
   useEffect(() => {
-    const unsub = onEvent(
-      ["agent.session.started", "agent.session.terminated", "sessions.list"],
-      (data) => {
-        if (data.type === "agent.session.started") {
-          const info: SessionInfo = {
-            sessionKey: (data.groupFolder as string) || (data.containerName as string) || "",
-            agentName: (data.agentName as string) || "Xandus",
-            status: "active",
-            startedAt: (data.timestamp as string) || new Date().toISOString(),
-            groupFolder: (data.groupFolder as string) || "",
-            containerName: (data.containerName as string) || "",
-            model: data.model as string | undefined,
-            runId: data.runId as string | undefined,
-          };
-          setSessionList((prev) => {
-            // Replace if same sessionKey, otherwise prepend
-            const exists = prev.findIndex((s) => s.sessionKey === info.sessionKey);
-            if (exists >= 0) {
-              const updated = [...prev];
-              updated[exists] = info;
-              return updated;
-            }
-            return [info, ...prev];
-          });
-        }
-
-        if (data.type === "agent.session.terminated") {
-          const containerName = data.containerName as string;
-          setSessionList((prev) =>
-            prev.map((s) =>
-              s.containerName === containerName ? { ...s, status: "terminated" as const } : s,
-            ),
-          );
-        }
-
-        if (data.type === "sessions.list" && Array.isArray(data.sessions)) {
+    const unsubs = [
+      onEvent("agent.session.started", (data) => {
+        const info: SessionInfo = {
+          sessionKey: (data.groupFolder as string) || (data.containerName as string) || "",
+          agentName: (data.agentName as string) || "Xandus",
+          status: "active",
+          startedAt: (data.timestamp as string) || new Date().toISOString(),
+          groupFolder: (data.groupFolder as string) || "",
+          containerName: (data.containerName as string) || "",
+          model: data.model as string | undefined,
+          runId: data.runId as string | undefined,
+        };
+        setSessionList((prev) => {
+          const exists = prev.findIndex((s) => s.sessionKey === info.sessionKey);
+          if (exists >= 0) {
+            const updated = [...prev];
+            updated[exists] = info;
+            return updated;
+          }
+          return [info, ...prev];
+        });
+      }),
+      onEvent("agent.session.terminated", (data) => {
+        const containerName = data.containerName as string;
+        setSessionList((prev) =>
+          prev.map((s) => (s.containerName === containerName ? { ...s, status: "terminated" } : s)),
+        );
+      }),
+      onEvent("sessions.list", (data) => {
+        if (Array.isArray(data.sessions)) {
           setSessionList(data.sessions as SessionInfo[]);
         }
-      },
-    );
-    return unsub;
+      }),
+    ];
+    return () => unsubs.forEach((fn) => fn());
   }, []);
 
   const activeSessions = sessionList.filter((s) => s.status === "active");

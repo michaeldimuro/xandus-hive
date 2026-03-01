@@ -186,7 +186,7 @@ function handleMessage(raw: string) {
     if (evt.event === "connect.challenge") {
       const payload = evt.payload as { nonce?: string } | undefined;
       if (payload?.nonce) {
-        _wsConnectNonce = payload.nonce;
+        __wsConnectNonce = payload.nonce;
         sendConnectFrame();
       }
       return;
@@ -239,7 +239,7 @@ function doConnect() {
 
   const url = config.url || `ws://${window.location.host}`;
   ws = new WebSocket(url);
-  _wsConnectNonce = null;
+  __wsConnectNonce = null;
   connectSent = false;
 
   ws.addEventListener("open", () => {
@@ -255,7 +255,7 @@ function doConnect() {
   ws.addEventListener("close", () => {
     ws = null;
     hello = null;
-    _wsConnectNonce = null;
+    __wsConnectNonce = null;
     connectSent = false;
     flushPending(new Error("gateway disconnected"));
     setState("disconnected");

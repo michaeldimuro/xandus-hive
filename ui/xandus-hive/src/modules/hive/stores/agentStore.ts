@@ -1,6 +1,6 @@
-import type { AgentProfile } from "@xandus/shared";
 import { create } from "zustand";
 import { agents } from "@/lib/openclaw-ws";
+import type { AgentProfile } from "../types/agent";
 
 interface AgentStoreState {
   agents: AgentProfile[];

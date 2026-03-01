@@ -1,39 +1,93 @@
-import React, { useState } from 'react';
-import { User, Bell, Shield, Palette, Save, Loader2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { User, Bell, Shield, Palette, Save, Loader2, Server } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { gatewayConfig } from "@/lib/openclaw-ws";
+import { supabase } from "@/lib/supabase";
 
 export function SettingsPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState("profile");
   const [saving, setSaving] = useState(false);
 
-  const [fullName, setFullName] = useState(user?.full_name || '');
-  const [email] = useState(user?.email || '');
+  const [fullName, setFullName] = useState(user?.full_name || "");
+  const [email] = useState(user?.email || "");
 
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [webhookNotifications, setWebhookNotifications] = useState(true);
 
+  // Gateway config state
+  const [configJson, setConfigJson] = useState("");
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [configSuccess, setConfigSuccess] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase.from('users').update({ full_name: fullName }).eq('id', user?.id);
-      if (error) {throw error;}
-      alert('Profile updated successfully!');
+      const { error } = await supabase
+        .from("users")
+        .update({ full_name: fullName })
+        .eq("id", user?.id);
+      if (error) {
+        throw error;
+      }
+      alert("Profile updated successfully!");
     } catch (error) {
-      console.error('Error updating profile:', error);
-      alert('Failed to update profile');
+      console.error("Error updating profile:", error);
+      alert("Failed to update profile");
     } finally {
       setSaving(false);
     }
   };
 
+  // Load gateway config when tab is active
+  useEffect(() => {
+    if (activeTab === "gateway") {
+      setConfigLoading(true);
+      setConfigError(null);
+      setConfigSuccess(false);
+      gatewayConfig
+        .get()
+        .then((res) => {
+          setConfigJson(JSON.stringify(res, null, 2));
+          setConfigError(null);
+        })
+        .catch(() => setConfigError("Failed to load gateway config"))
+        .finally(() => setConfigLoading(false));
+    }
+  }, [activeTab]);
+
+  const handleSaveConfig = () => {
+    setConfigSaving(true);
+    setConfigError(null);
+    setConfigSuccess(false);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(configJson) as Record<string, unknown>;
+    } catch {
+      setConfigError("Invalid JSON");
+      setConfigSaving(false);
+      return;
+    }
+    gatewayConfig
+      .patch(parsed)
+      .then(() => {
+        setConfigSuccess(true);
+        setConfigError(null);
+        setTimeout(() => setConfigSuccess(false), 3000);
+      })
+      .catch(() => setConfigError("Failed to save gateway config"))
+      .finally(() => setConfigSaving(false));
+  };
+
   const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
+    { id: "profile", label: "Profile", icon: User },
+    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "security", label: "Security", icon: Shield },
+    { id: "appearance", label: "Appearance", icon: Palette },
+    { id: "gateway", label: "Gateway", icon: Server },
   ];
 
   return (
@@ -53,8 +107,8 @@ export function SettingsPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${
                   activeTab === tab.id
-                    ? 'bg-indigo-600/20 text-indigo-400 border-l-4 border-indigo-500'
-                    : 'text-gray-400 hover:bg-[#1a1a3a] hover:text-white'
+                    ? "bg-indigo-600/20 text-indigo-400 border-l-4 border-indigo-500"
+                    : "text-gray-400 hover:bg-[#1a1a3a] hover:text-white"
                 }`}
               >
                 <tab.icon size={20} />
@@ -67,13 +121,13 @@ export function SettingsPage() {
         {/* Content */}
         <div className="flex-1">
           <div className="glass rounded-xl p-6">
-            {activeTab === 'profile' && (
+            {activeTab === "profile" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-white mb-4">Profile Information</h2>
 
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-20 h-20 rounded-full gradient-accent flex items-center justify-center text-white text-2xl font-bold">
-                    {fullName?.charAt(0) || 'U'}
+                    {fullName?.charAt(0) || "U"}
                   </div>
                   <button className="px-4 py-2 bg-[#1a1a3a] text-gray-300 rounded-lg hover:bg-[#2a2a4a] transition">
                     Change Avatar
@@ -82,7 +136,9 @@ export function SettingsPage() {
 
                 <div className="space-y-4 max-w-md">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Full Name
+                    </label>
                     <input
                       type="text"
                       value={fullName}
@@ -99,11 +155,13 @@ export function SettingsPage() {
                       disabled
                       className="w-full px-4 py-2 bg-[#0a0a1a] border border-[#2a2a4a] rounded-lg text-gray-500"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Contact support to change your email</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Contact support to change your email
+                    </p>
                   </div>
 
                   <button
-                    onClick={handleSaveProfile}
+                    onClick={() => void handleSaveProfile()}
                     disabled={saving}
                     className="flex items-center gap-2 px-4 py-2 gradient-accent text-white rounded-lg hover:opacity-90 transition disabled:opacity-50"
                   >
@@ -114,17 +172,35 @@ export function SettingsPage() {
               </div>
             )}
 
-            {activeTab === 'notifications' && (
+            {activeTab === "notifications" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-white mb-4">Notification Preferences</h2>
 
                 <div className="space-y-4">
                   {[
-                    { label: 'Email Notifications', desc: 'Receive email updates about your tasks and leads', value: emailNotifications, setter: setEmailNotifications },
-                    { label: 'Push Notifications', desc: 'Receive push notifications in your browser', value: pushNotifications, setter: setPushNotifications },
-                    { label: 'Webhook Events', desc: 'Send webhook notifications to external services', value: webhookNotifications, setter: setWebhookNotifications },
+                    {
+                      label: "Email Notifications",
+                      desc: "Receive email updates about your tasks and leads",
+                      value: emailNotifications,
+                      setter: setEmailNotifications,
+                    },
+                    {
+                      label: "Push Notifications",
+                      desc: "Receive push notifications in your browser",
+                      value: pushNotifications,
+                      setter: setPushNotifications,
+                    },
+                    {
+                      label: "Webhook Events",
+                      desc: "Send webhook notifications to external services",
+                      value: webhookNotifications,
+                      setter: setWebhookNotifications,
+                    },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between p-4 bg-[#1a1a3a] border border-[#2a2a4a] rounded-lg">
+                    <div
+                      key={item.label}
+                      className="flex items-center justify-between p-4 bg-[#1a1a3a] border border-[#2a2a4a] rounded-lg"
+                    >
                       <div>
                         <p className="font-medium text-white">{item.label}</p>
                         <p className="text-sm text-gray-500">{item.desc}</p>
@@ -144,14 +220,16 @@ export function SettingsPage() {
               </div>
             )}
 
-            {activeTab === 'security' && (
+            {activeTab === "security" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-white mb-4">Security Settings</h2>
 
                 <div className="space-y-4 max-w-md">
-                  {['Current Password', 'New Password', 'Confirm New Password'].map((label) => (
+                  {["Current Password", "New Password", "Confirm New Password"].map((label) => (
                     <div key={label}>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">{label}</label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        {label}
+                      </label>
                       <input
                         type="password"
                         className="w-full px-4 py-2 bg-[#1a1a3a] border border-[#2a2a4a] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -169,7 +247,9 @@ export function SettingsPage() {
 
                 <div>
                   <h3 className="font-medium text-white mb-2">Danger Zone</h3>
-                  <p className="text-sm text-gray-500 mb-4">Once you delete your account, there is no going back.</p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Once you delete your account, there is no going back.
+                  </p>
                   <button className="px-4 py-2 border border-red-500/50 text-red-400 rounded-lg hover:bg-red-500/10 transition">
                     Delete Account
                   </button>
@@ -177,7 +257,7 @@ export function SettingsPage() {
               </div>
             )}
 
-            {activeTab === 'appearance' && (
+            {activeTab === "appearance" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-white mb-4">Appearance</h2>
 
@@ -201,18 +281,91 @@ export function SettingsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">Accent Color</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      Accent Color
+                    </label>
                     <div className="flex gap-3">
-                      {['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#22c55e', '#06b6d4'].map((color) => (
+                      {[
+                        "#6366f1",
+                        "#8b5cf6",
+                        "#ec4899",
+                        "#ef4444",
+                        "#f59e0b",
+                        "#22c55e",
+                        "#06b6d4",
+                      ].map((color) => (
                         <button
                           key={color}
-                          className={`w-10 h-10 rounded-full border-2 hover:scale-110 transition ${color === '#6366f1' ? 'border-white' : 'border-transparent'}`}
+                          className={`w-10 h-10 rounded-full border-2 hover:scale-110 transition ${color === "#6366f1" ? "border-white" : "border-transparent"}`}
                           style={{ backgroundColor: color }}
                         />
                       ))}
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {activeTab === "gateway" && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-white mb-1">Gateway Configuration</h2>
+                  <p className="text-sm text-gray-500">
+                    View and edit the OpenClaw gateway configuration. Changes are applied
+                    immediately via hot reload.
+                  </p>
+                </div>
+
+                {configLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 size={24} className="animate-spin text-indigo-400" />
+                    <span className="ml-3 text-sm text-gray-400">Loading configuration...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <textarea
+                      value={configJson}
+                      onChange={(e) => {
+                        setConfigJson(e.target.value);
+                        setConfigSuccess(false);
+                        setConfigError(null);
+                      }}
+                      spellCheck={false}
+                      className="w-full min-h-[400px] px-4 py-3 bg-[#0a0a1a] border border-[#2a2a4a] rounded-lg text-gray-200 font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+                      placeholder="Gateway configuration JSON..."
+                    />
+
+                    {configError && (
+                      <div className="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+                        {configError}
+                      </div>
+                    )}
+
+                    {configSuccess && (
+                      <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-sm text-emerald-400">
+                        Configuration saved and applied successfully.
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-amber-400/80">
+                        Warning: Changes are applied immediately via hot reload.
+                      </p>
+                      <button
+                        onClick={handleSaveConfig}
+                        disabled={configSaving || configLoading}
+                        className="flex items-center gap-2 px-4 py-2 gradient-accent text-white rounded-lg hover:opacity-90 transition disabled:opacity-50"
+                      >
+                        {configSaving ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <Save size={18} />
+                        )}
+                        Save Configuration
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

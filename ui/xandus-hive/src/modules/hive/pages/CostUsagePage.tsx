@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import {
+  DollarSign,
+  Calendar,
+  TrendingUp,
+  Database,
+  AlertTriangle,
+  Download,
+  Zap,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -9,11 +18,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { getAuthHeaders } from '@/lib/supabase';
-import { useOperationsStore } from '@/stores/operationsStore';
-import { useTriggerStore } from '../stores/triggerStore';
-import { DollarSign, Calendar, TrendingUp, Database, AlertTriangle, Download, Zap } from 'lucide-react';
+} from "@/components/ui/table";
+import { xandus } from "@/lib/openclaw-ws";
+import { useOperationsStore } from "@/stores/operationsStore";
+import { useTriggerStore } from "../stores/triggerStore";
 
 const MAX_DAILY_COST = 12.0; // matches .env default
 const ALERT_THRESHOLD = 0.8; // warn at 80%
@@ -47,15 +55,19 @@ function formatCost(cost: number): string {
 }
 
 function formatTokens(tokens: number): string {
-  if (tokens >= 1_000_000) {return `${(tokens / 1_000_000).toFixed(1)}M`;}
-  if (tokens >= 1_000) {return `${(tokens / 1_000).toFixed(1)}K`;}
+  if (tokens >= 1_000_000) {
+    return `${(tokens / 1_000_000).toFixed(1)}M`;
+  }
+  if (tokens >= 1_000) {
+    return `${(tokens / 1_000).toFixed(1)}K`;
+  }
   return tokens.toString();
 }
 
 function formatDate(dateStr: string): string {
   try {
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', weekday: 'short' });
+    const date = new Date(dateStr + "T00:00:00");
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric", weekday: "short" });
   } catch {
     return dateStr;
   }
@@ -73,28 +85,43 @@ export default function CostUsagePage() {
   useEffect(() => {
     let mounted = true;
 
-    const fetchData = async () => {
-      try {
-        const headers = await getAuthHeaders();
-        const response = await fetch('/api/cost/summary', {
-          headers: headers || { 'Content-Type': 'application/json' },
+    Promise.all([xandus.cost.summary(), xandus.cost.daily(), xandus.cost.models()])
+      .then(([summaryRes, dailyRes, modelsRes]) => {
+        if (!mounted) {
+          return;
+        }
+        const summary = summaryRes as Record<string, unknown>;
+        const daily = (dailyRes as Record<string, unknown>)?.dailyTotals as
+          | DailyTotal[]
+          | undefined;
+        const models = (modelsRes as Record<string, unknown>)?.modelBreakdown as
+          | ModelBreakdown[]
+          | undefined;
+
+        setData({
+          today: Number(summary?.today ?? 0),
+          week: Number(summary?.week ?? 0),
+          month: Number(summary?.month ?? 0),
+          allTime: Number(summary?.allTime ?? 0),
+          dailyTotals: daily ?? [],
+          modelBreakdown: models ?? [],
         });
+        setError(null);
+      })
+      .catch(() => {
+        if (mounted) {
+          setError("Failed to load cost data");
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
 
-        if (!response.ok) {throw new Error(`API error: ${response.status}`);}
-
-        const json = await response.json();
-        if (!json.success) {throw new Error(json.error || 'Failed to fetch cost data');}
-
-        if (mounted) { setData(json.data); setError(null); }
-      } catch (err) {
-        if (mounted) {setError(err instanceof Error ? err.message : 'Unknown error');}
-      } finally {
-        if (mounted) {setLoading(false);}
-      }
+    return () => {
+      mounted = false;
     };
-
-    fetchData();
-    return () => { mounted = false; };
   }, []);
 
   // Cost alert: use real-time dailyCost from system.metrics WS event
@@ -104,11 +131,13 @@ export default function CostUsagePage() {
 
   // Trigger fire events from liveFeed
   const triggerCosts = useMemo(() => {
-    const fires = liveFeed.filter((e) => e.type === 'trigger.fired');
+    const fires = liveFeed.filter((e) => e.type === "trigger.fired");
     const triggerMap = new Map<string, { name: string; fires: number }>();
     for (const fire of fires) {
-      const tId = (fire.payload)?.triggerId as string;
-      if (!tId) {continue;}
+      const tId = fire.payload?.triggerId as string;
+      if (!tId) {
+        continue;
+      }
       const existing = triggerMap.get(tId);
       if (existing) {
         existing.fires++;
@@ -121,20 +150,33 @@ export default function CostUsagePage() {
   }, [liveFeed, triggers]);
 
   const exportCsv = useCallback(() => {
-    if (!data) {return;}
-    const rows = [['Date', 'Cost', 'Input Tokens', 'Output Tokens']];
+    if (!data) {
+      return;
+    }
+    const rows = [["Date", "Cost", "Input Tokens", "Output Tokens"]];
     for (const day of data.dailyTotals) {
-      rows.push([day.date, day.total_cost.toFixed(4), String(day.total_input), String(day.total_output)]);
+      rows.push([
+        day.date,
+        day.total_cost.toFixed(4),
+        String(day.total_input),
+        String(day.total_output),
+      ]);
     }
     rows.push([]);
-    rows.push(['Model', 'Cost', 'Requests', 'Input Tokens', 'Output Tokens']);
+    rows.push(["Model", "Cost", "Requests", "Input Tokens", "Output Tokens"]);
     for (const m of data.modelBreakdown) {
-      rows.push([m.model, m.total_cost.toFixed(4), String(m.request_count), String(m.total_input), String(m.total_output)]);
+      rows.push([
+        m.model,
+        m.total_cost.toFixed(4),
+        String(m.request_count),
+        String(m.total_input),
+        String(m.total_output),
+      ]);
     }
-    const csv = rows.map((r) => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = `cost-report-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
@@ -142,10 +184,30 @@ export default function CostUsagePage() {
   }, [data]);
 
   const summaryCards = [
-    { label: 'Today', value: liveDailyCost, icon: DollarSign, color: 'text-green-400 bg-green-500/10' },
-    { label: 'This Week', value: data?.week ?? 0, icon: Calendar, color: 'text-blue-400 bg-blue-500/10' },
-    { label: 'This Month', value: data?.month ?? 0, icon: TrendingUp, color: 'text-purple-400 bg-purple-500/10' },
-    { label: 'All Time', value: data?.allTime ?? 0, icon: Database, color: 'text-orange-400 bg-orange-500/10' },
+    {
+      label: "Today",
+      value: liveDailyCost,
+      icon: DollarSign,
+      color: "text-green-400 bg-green-500/10",
+    },
+    {
+      label: "This Week",
+      value: data?.week ?? 0,
+      icon: Calendar,
+      color: "text-blue-400 bg-blue-500/10",
+    },
+    {
+      label: "This Month",
+      value: data?.month ?? 0,
+      icon: TrendingUp,
+      color: "text-purple-400 bg-purple-500/10",
+    },
+    {
+      label: "All Time",
+      value: data?.allTime ?? 0,
+      icon: Database,
+      color: "text-orange-400 bg-orange-500/10",
+    },
   ];
 
   return (
@@ -165,20 +227,31 @@ export default function CostUsagePage() {
 
       {/* Cost alert banner */}
       {showAlert && (
-        <Card className={costRatio >= 1 ? 'border-red-500/40 bg-red-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}>
+        <Card
+          className={
+            costRatio >= 1
+              ? "border-red-500/40 bg-red-500/5"
+              : "border-yellow-500/40 bg-yellow-500/5"
+          }
+        >
           <CardContent className="flex items-center gap-3 p-4">
-            <AlertTriangle className={`h-5 w-5 ${costRatio >= 1 ? 'text-red-400' : 'text-yellow-400'}`} />
+            <AlertTriangle
+              className={`h-5 w-5 ${costRatio >= 1 ? "text-red-400" : "text-yellow-400"}`}
+            />
             <div>
-              <p className={`text-sm font-medium ${costRatio >= 1 ? 'text-red-400' : 'text-yellow-400'}`}>
-                {costRatio >= 1 ? 'Daily cost limit reached!' : 'Approaching daily cost limit'}
+              <p
+                className={`text-sm font-medium ${costRatio >= 1 ? "text-red-400" : "text-yellow-400"}`}
+              >
+                {costRatio >= 1 ? "Daily cost limit reached!" : "Approaching daily cost limit"}
               </p>
               <p className="text-muted-foreground text-xs">
-                {formatCost(liveDailyCost)} of {formatCost(MAX_DAILY_COST)} ({Math.round(costRatio * 100)}%)
+                {formatCost(liveDailyCost)} of {formatCost(MAX_DAILY_COST)} (
+                {Math.round(costRatio * 100)}%)
               </p>
             </div>
             <div className="ml-auto h-2 w-32 rounded-full bg-zinc-800 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${costRatio >= 1 ? 'bg-red-500' : 'bg-yellow-500'}`}
+                className={`h-full rounded-full transition-all ${costRatio >= 1 ? "bg-red-500" : "bg-yellow-500"}`}
                 style={{ width: `${Math.min(costRatio * 100, 100)}%` }}
               />
             </div>
@@ -193,14 +266,14 @@ export default function CostUsagePage() {
           return (
             <Card key={card.label}>
               <CardContent className="flex items-center gap-3 p-4">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.color.split(' ')[1]}`}>
-                  <Icon className={`h-5 w-5 ${card.color.split(' ')[0]}`} />
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.color.split(" ")[1]}`}
+                >
+                  <Icon className={`h-5 w-5 ${card.color.split(" ")[0]}`} />
                 </div>
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">{card.label}</p>
-                  <p className="text-xl font-bold">
-                    {loading ? '--' : formatCost(card.value)}
-                  </p>
+                  <p className="text-xl font-bold">{loading ? "--" : formatCost(card.value)}</p>
                 </div>
               </CardContent>
             </Card>

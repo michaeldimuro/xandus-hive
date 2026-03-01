@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useHiveWebSocket } from "@/hooks/useHiveWebSocket";
-import * as ws from "@/lib/openclaw-ws";
+import { agent, chat } from "@/lib/openclaw-ws";
 import { useOperationsStore } from "@/stores/operationsStore";
 import { ActivityFeed } from "./ActivityFeed";
 import { AgentConsole } from "./AgentConsole";
@@ -47,7 +47,7 @@ export function HiveControlPanel() {
     if (!triggerJid || !triggerPrompt) {
       return;
     }
-    void ws.request("agent.trigger", { chatJid: triggerJid, prompt: triggerPrompt });
+    void agent.send(triggerPrompt, triggerJid);
     setTriggerPrompt("");
   };
 
@@ -55,7 +55,7 @@ export function HiveControlPanel() {
     if (!messageJid || !messageText) {
       return;
     }
-    void ws.request("agent.send_message", { chatJid: messageJid, text: messageText });
+    void chat.send(messageText, messageJid);
     setMessageText("");
   };
 
@@ -63,7 +63,7 @@ export function HiveControlPanel() {
     if (!cancelJid) {
       return;
     }
-    void ws.request("agent.cancel", { chatJid: cancelJid });
+    void chat.abort(cancelJid);
   };
 
   const formatUptime = (ms: number) => {

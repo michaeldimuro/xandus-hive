@@ -1,5 +1,4 @@
 import { ShieldCheck, ShieldX, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-// @ts-nocheck
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { execApprovals, onEvent } from "@/lib/openclaw-ws";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ExecApproval {
+  id: string;
+  agentName: string;
+  sessionKey: string;
+  command: string;
+  context?: string;
+  status: "pending" | "approved" | "denied";
+  timestamp: string;
+  resolvedAt?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Approval Card
@@ -139,7 +153,7 @@ export default function ApprovalsPage() {
       .get()
       .then((list) => {
         if (mounted) {
-          setApprovals(list);
+          setApprovals(list as ExecApproval[]);
         }
       })
       .catch(() => {
@@ -155,45 +169,44 @@ export default function ApprovalsPage() {
     };
   }, []);
 
-  // Real-time updates
+  // Real-time updates — separate onEvent call per event name
   useEffect(() => {
-    const unsub = onEvent(
-      ["exec.approval.created", "exec.approval.resolved", "exec.approvals.list"],
-      (data) => {
-        if (data.type === "exec.approval.created") {
-          const newApproval = data.approval as Record<string, unknown>;
-          if (newApproval) {
-            setApprovals((prev) => [newApproval, ...prev]);
-          }
+    const unsubs = [
+      onEvent("exec.approval.created", (data) => {
+        const newApproval = data.approval as ExecApproval | undefined;
+        if (newApproval) {
+          setApprovals((prev) => [newApproval, ...prev]);
         }
-        if (data.type === "exec.approval.resolved") {
-          const resolved = data as { id?: string; status?: string; resolvedAt?: string };
-          if (resolved.id) {
-            setApprovals((prev) =>
-              prev.map((a) =>
-                a.id === resolved.id
-                  ? {
-                      ...a,
-                      status: (resolved.status as ExecApproval["status"]) || a.status,
-                      resolvedAt: resolved.resolvedAt,
-                    }
-                  : a,
-              ),
-            );
-            setResolving(null);
-          }
+      }),
+      onEvent("exec.approval.resolved", (data) => {
+        const resolved = data as { id?: string; status?: string; resolvedAt?: string };
+        if (resolved.id) {
+          setApprovals((prev) =>
+            prev.map((a) =>
+              a.id === resolved.id
+                ? {
+                    ...a,
+                    status: (resolved.status as ExecApproval["status"]) || a.status,
+                    resolvedAt: resolved.resolvedAt,
+                  }
+                : a,
+            ),
+          );
+          setResolving(null);
         }
-        if (data.type === "exec.approvals.list" && Array.isArray(data.approvals)) {
+      }),
+      onEvent("exec.approvals.list", (data) => {
+        if (Array.isArray(data.approvals)) {
           setApprovals(data.approvals as ExecApproval[]);
         }
-      },
-    );
-    return unsub;
+      }),
+    ];
+    return () => unsubs.forEach((fn) => fn());
   }, []);
 
   const handleResolve = useCallback((id: string, decision: "approved" | "denied") => {
     setResolving(id);
-    void execApprovals.resolve(id, decision);
+    void execApprovals.resolve(id, decision === "approved" ? "approve" : "deny");
     // Optimistic update
     setApprovals((prev) =>
       prev.map((a) =>

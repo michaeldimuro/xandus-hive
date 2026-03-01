@@ -1,13 +1,13 @@
-import type { Trigger } from "@xandus/shared";
 import { create } from "zustand";
 import { cron } from "@/lib/openclaw-ws";
+import type { CronJob } from "../types/cron";
 
 interface TriggerStoreState {
-  triggers: Trigger[];
+  triggers: CronJob[];
   loading: boolean;
-  setTriggers: (triggers: Trigger[]) => void;
-  addTrigger: (trigger: Trigger) => void;
-  updateTrigger: (trigger: Trigger) => void;
+  setTriggers: (triggers: CronJob[]) => void;
+  addTrigger: (trigger: CronJob) => void;
+  updateTrigger: (trigger: CronJob) => void;
   removeTrigger: (id: string) => void;
   fetchTriggers: () => void;
   createTrigger: (payload: Record<string, unknown>) => void;
@@ -30,7 +30,7 @@ export const useTriggerStore = create<TriggerStoreState>((set) => ({
     cron
       .list()
       .then((res) => {
-        const list = (res as { jobs: Trigger[] }).jobs;
+        const list = (res as { jobs: CronJob[] }).jobs;
         if (Array.isArray(list)) {
           useTriggerStore.getState().setTriggers(list);
         }
@@ -44,7 +44,7 @@ export const useTriggerStore = create<TriggerStoreState>((set) => ({
     cron
       .add(payload)
       .then((res) => {
-        const trigger = (res as { trigger: Trigger }).trigger;
+        const trigger = (res as { trigger: CronJob }).trigger;
         if (trigger) {
           useTriggerStore.getState().addTrigger(trigger);
         }
@@ -58,7 +58,7 @@ export const useTriggerStore = create<TriggerStoreState>((set) => ({
     cron
       .update(id, payload)
       .then((res) => {
-        const trigger = (res as { trigger: Trigger }).trigger;
+        const trigger = (res as { trigger: CronJob }).trigger;
         if (trigger) {
           useTriggerStore.getState().updateTrigger(trigger);
         }
