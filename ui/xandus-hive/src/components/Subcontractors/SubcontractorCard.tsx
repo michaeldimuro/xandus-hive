@@ -1,0 +1,262 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Star,
+  Phone,
+  Mail,
+  MapPin,
+  DollarSign,
+  Shield,
+  Award,
+  Edit,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Clock,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  Download,
+} from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import type { Subcontractor, SubcontractorDocument, SubcontractorDocumentType } from '@/types/subcontractor';
+
+interface SubcontractorCardProps {
+  subcontractor: Subcontractor;
+  onEdit: (sub: Subcontractor) => void;
+}
+
+const documentTypeLabels: Record<SubcontractorDocumentType, string> = {
+  w9: 'W-9',
+  insurance: 'Insurance',
+  contract: 'Contract',
+  license: 'License',
+  invoice: 'Invoice',
+  other: 'Other',
+};
+
+export default function SubcontractorCard({ subcontractor, onEdit }: SubcontractorCardProps) {
+  const [documents, setDocuments] = useState<SubcontractorDocument[]>([]);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [docsLoaded, setDocsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (docsOpen && !docsLoaded) {
+      const loadDocs = async () => {
+        const { data } = await supabase
+          .from('subcontractor_documents')
+          .select('*')
+          .eq('subcontractor_id', subcontractor.id)
+          .order('uploaded_at', { ascending: false });
+
+        if (data) {
+          setDocuments(data);
+          setDocsLoaded(true);
+        }
+      };
+      loadDocs();
+    }
+  }, [docsOpen, docsLoaded, subcontractor.id]);
+
+  const getAvailabilityColor = (status: string) => {
+    switch (status) {
+      case 'available':
+        return 'text-green-400 bg-green-400/10 border-green-400/30';
+      case 'busy':
+        return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30';
+      case 'unavailable':
+        return 'text-gray-400 bg-gray-400/10 border-gray-400/30';
+      case 'do_not_use':
+        return 'text-red-400 bg-red-400/10 border-red-400/30';
+      default:
+        return 'text-gray-400 bg-gray-400/10 border-gray-400/30';
+    }
+  };
+
+  const getSpecialtyIcon = (specialty: string) => {
+    // Return an emoji or icon based on specialty
+    const icons: { [key: string]: string } = {
+      electrical: '⚡',
+      plumbing: '🚰',
+      HVAC: '❄️',
+      carpentry: '🪚',
+      drywall: '🧱',
+      roofing: '🏠',
+      painting: '🎨',
+      flooring: '📐',
+      masonry: '🧱',
+      landscaping: '🌿',
+      general: '🔧',
+    };
+    return icons[specialty] || '🔧';
+  };
+
+  const renderStarRating = (rating: number) => {
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+    return (
+      <div className="flex items-center gap-1">
+        {[...Array(fullStars)].map((_, i) => (
+          <Star key={`full-${i}`} size={16} className="fill-yellow-400 text-yellow-400" />
+        ))}
+        {hasHalfStar && <Star size={16} className="fill-yellow-400 text-yellow-400" style={{ clipPath: 'inset(0 50% 0 0)' }} />}
+        {[...Array(emptyStars)].map((_, i) => (
+          <Star key={`empty-${i}`} size={16} className="text-gray-600" />
+        ))}
+        <span className="text-sm text-gray-400 ml-1">({rating.toFixed(1)})</span>
+      </div>
+    );
+  };
+
+  const needsAttention = 
+    (subcontractor.license_expiry && new Date(subcontractor.license_expiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) ||
+    (subcontractor.insurance_expiry && new Date(subcontractor.insurance_expiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+
+  return (
+    <div className="bg-[#1a1a3a] border border-[#2a2a4a] rounded-lg p-4 sm:p-5 hover:border-blue-500/50 transition-all group relative">
+      {/* Edit Button - Always visible on mobile */}
+      <button
+        onClick={() => onEdit(subcontractor)}
+        className="absolute top-3 sm:top-4 right-3 sm:right-4 p-2 bg-[#0f0f23] border border-[#2a2a4a] rounded-lg sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:border-blue-500 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
+      >
+        <Edit size={16} className="text-gray-400" />
+      </button>
+
+      {/* Attention Badge */}
+      {needsAttention && (
+        <div className="absolute top-3 sm:top-4 right-14 sm:right-16 px-2 py-1 bg-orange-500/20 border border-orange-500/50 rounded-md flex items-center gap-1">
+          <AlertCircle size={12} className="text-orange-400 sm:w-3.5 sm:h-3.5" />
+          <span className="text-xs text-orange-400 hidden sm:inline">Attention</span>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="mb-3 sm:mb-4 pr-10 sm:pr-12">
+        <div className="flex items-start gap-3">
+          <div className="text-2xl sm:text-3xl">{getSpecialtyIcon(subcontractor.specialty)}</div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg sm:text-xl font-semibold text-white truncate">{subcontractor.name}</h3>
+            {subcontractor.company_name && (
+              <p className="text-sm text-gray-400 truncate">{subcontractor.company_name}</p>
+            )}
+            <p className="text-xs text-purple-400 capitalize mt-1">{subcontractor.specialty}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Rating */}
+      <div className="mb-3 sm:mb-4">
+        {renderStarRating(subcontractor.quality_rating)}
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-2 text-xs sm:text-sm">
+          <div className="flex items-center gap-1">
+            <Award size={14} className="text-blue-400" />
+            <span className="text-gray-400">Reliability:</span>
+            <span className="text-white font-medium">{subcontractor.reliability_score}/100</span>
+          </div>
+          <div className="text-gray-400">
+            {subcontractor.jobs_completed} jobs
+          </div>
+        </div>
+      </div>
+
+      {/* Availability Status */}
+      <div className={`px-3 py-2 rounded-lg border mb-3 sm:mb-4 ${getAvailabilityColor(subcontractor.availability_status)}`}>
+        <div className="flex items-center gap-2">
+          {subcontractor.availability_status === 'available' && <CheckCircle size={16} />}
+          {subcontractor.availability_status === 'busy' && <Clock size={16} />}
+          {subcontractor.availability_status === 'unavailable' && <XCircle size={16} />}
+          {subcontractor.availability_status === 'do_not_use' && <XCircle size={16} />}
+          <span className="text-sm font-medium capitalize">
+            {subcontractor.availability_status.replace('_', ' ')}
+          </span>
+        </div>
+      </div>
+
+      {/* Contact Info - Touch-friendly links */}
+      <div className="space-y-2 mb-3 sm:mb-4">
+        <a 
+          href={`tel:${subcontractor.phone}`}
+          className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 py-1 -mx-1 px-1 rounded touch-manipulation"
+        >
+          <Phone size={14} className="flex-shrink-0" />
+          <span className="truncate">{subcontractor.phone}</span>
+        </a>
+        {subcontractor.email && (
+          <a
+            href={`mailto:${subcontractor.email}`}
+            className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 py-1 -mx-1 px-1 rounded touch-manipulation"
+          >
+            <Mail size={14} className="flex-shrink-0" />
+            <span className="truncate">{subcontractor.email}</span>
+          </a>
+        )}
+        {subcontractor.city && (
+          <div className="flex items-center gap-2 text-sm py-1">
+            <MapPin size={14} className="text-gray-400 flex-shrink-0" />
+            <span className="text-gray-300 truncate">
+              {subcontractor.city}{subcontractor.state ? `, ${subcontractor.state}` : ''}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Rates */}
+      {subcontractor.hourly_rate && (
+        <div className="flex items-center gap-2 mb-3 sm:mb-4 text-xs sm:text-sm">
+          <DollarSign size={14} className="text-green-400 flex-shrink-0" />
+          <span className="text-gray-400">Hourly Rate:</span>
+          <span className="text-white font-medium">${subcontractor.hourly_rate}/hr</span>
+        </div>
+      )}
+
+      {/* Certifications */}
+      <div className="flex flex-wrap items-center gap-2 mb-3 sm:mb-4">
+        {subcontractor.licensed && (
+          <div className="flex items-center gap-1 px-2 py-1 bg-blue-500/20 border border-blue-500/50 rounded text-xs text-blue-400">
+            <Shield size={12} />
+            <span>Licensed</span>
+          </div>
+        )}
+        {subcontractor.insured && (
+          <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 border border-green-500/50 rounded text-xs text-green-400">
+            <Shield size={12} />
+            <span>Insured</span>
+          </div>
+        )}
+        {subcontractor.bonded && (
+          <div className="flex items-center gap-1 px-2 py-1 bg-purple-500/20 border border-purple-500/50 rounded text-xs text-purple-400">
+            <Shield size={12} />
+            <span>Bonded</span>
+          </div>
+        )}
+      </div>
+
+      {/* Tags */}
+      {subcontractor.tags.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {subcontractor.tags.slice(0, 3).map((tag, idx) => (
+            <span
+              key={idx}
+              className="px-2 py-1 bg-[#0f0f23] border border-[#2a2a4a] rounded text-xs text-gray-300"
+            >
+              {tag}
+            </span>
+          ))}
+          {subcontractor.tags.length > 3 && (
+            <span className="px-2 py-1 text-xs text-gray-400">
+              +{subcontractor.tags.length - 3} more
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Notes Preview */}
+      {subcontractor.notes && (
+        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#2a2a4a]">
+          <p className="text-xs sm:text-sm text-gray-400 line-clamp-2">{subcontractor.notes}</p>
+        </div>
+      )}
+    </div>
+  );
+}
