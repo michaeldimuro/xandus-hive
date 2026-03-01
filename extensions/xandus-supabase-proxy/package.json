@@ -1,0 +1,15 @@
+{
+  "name": "@xandus/supabase-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Xandus Supabase proxy gateway extension — query, upsert, delete via WS methods",
+  "type": "module",
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

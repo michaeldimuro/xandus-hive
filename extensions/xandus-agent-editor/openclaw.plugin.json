@@ -1,0 +1,8 @@
+{
+  "id": "xandus-agent-editor",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "xandus-cost-aggregator",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

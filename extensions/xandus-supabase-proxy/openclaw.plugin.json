@@ -1,0 +1,8 @@
+{
+  "id": "xandus-supabase-proxy",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
