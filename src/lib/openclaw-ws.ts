@@ -237,7 +237,7 @@ function doConnect() {
   }
   setState("connecting");
 
-  const url = config.url || `ws://${window.location.host}`;
+  const url = config.url || import.meta.env.VITE_GATEWAY_URL || `ws://${window.location.host}`;
   ws = new WebSocket(url);
   __wsConnectNonce = null;
   connectSent = false;
